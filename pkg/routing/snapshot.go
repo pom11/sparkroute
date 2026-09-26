@@ -618,6 +618,9 @@ func cloneProvider(provider config.Provider) config.Provider {
 }
 
 func cloneDeployment(deployment config.Deployment) config.Deployment {
+	deployment.RequestProfiles = config.CloneProfileValue(deployment.RequestProfiles)
+	deployment.ProfileSource = config.CloneProfileValue(deployment.ProfileSource)
+	deployment.DiscoveryJobIDs = append([]string(nil), deployment.DiscoveryJobIDs...)
 	if deployment.ModelMetadata != nil {
 		metadata := modelrouter.ReduceModelMetadata(modelrouter.DiscoveredModelMetadata{}, *deployment.ModelMetadata)
 		deployment.ModelMetadata = &metadata
@@ -656,6 +659,7 @@ func cloneRawMessages(input map[string]json.RawMessage) map[string]json.RawMessa
 }
 
 func cloneVirtualModel(model config.VirtualModel) config.VirtualModel {
+	model.Profile = config.CloneProfileValue(model.Profile)
 	if model.RequestOverrides != nil {
 		overrides := make(map[string]map[string]json.RawMessage, len(model.RequestOverrides))
 		for operation, values := range model.RequestOverrides {

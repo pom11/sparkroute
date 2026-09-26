@@ -30,15 +30,16 @@ var (
 type Owner string
 
 const (
-	OwnerOperator Owner = "operator"
-	OwnerSparkrun Owner = "sparkrun"
+	OwnerOperator       Owner = "operator"
+	OwnerSparkrun       Owner = "sparkrun"
+	OwnerRecipeProfiles Owner = "recipe_profiles"
 )
 
-var ownerOrder = []Owner{OwnerOperator, OwnerSparkrun}
+var ownerOrder = []Owner{OwnerOperator, OwnerSparkrun, OwnerRecipeProfiles}
 
 func (o Owner) Validate() error {
 	switch o {
-	case OwnerOperator, OwnerSparkrun:
+	case OwnerOperator, OwnerSparkrun, OwnerRecipeProfiles:
 		return nil
 	default:
 		return fmt.Errorf("unsupported configuration owner %q", o)
@@ -115,6 +116,18 @@ func Merge(sets map[Owner]config.Document) (config.Document, error) {
 		}
 		if document.SparkrunOverrides != nil && owner != OwnerOperator {
 			return config.Document{}, fmt.Errorf("sparkrun_overrides must be managed by the operator")
+		}
+		if len(document.RequestProfileSources) > 0 && owner != OwnerRecipeProfiles {
+			return config.Document{}, fmt.Errorf("request_profile_sources is gateway-managed")
+		}
+		if owner == OwnerRecipeProfiles {
+			copy := document
+			copy.RequestProfileSources = nil
+			raw, _, _ := FragmentRevision(copy)
+			empty, _, _ := FragmentRevision(EmptyDocument())
+			if string(raw) != string(empty) {
+				return config.Document{}, fmt.Errorf("recipe_profiles owner may only contain request_profile_sources")
+			}
 		}
 		filtered[owner] = document
 	}
@@ -200,6 +213,9 @@ func Merge(sets map[Owner]config.Document) (config.Document, error) {
 			result.ModelRouting = &cloned
 			modelRoutingOwner = owner
 		}
+		if owner == OwnerRecipeProfiles {
+			result.RequestProfileSources = config.CloneProfileValue(document.RequestProfileSources)
+		}
 		result.Providers = append(result.Providers, document.Providers...)
 		result.Deployments = append(result.Deployments, document.Deployments...)
 		result.VirtualModels = append(result.VirtualModels, document.VirtualModels...)
@@ -214,7 +230,7 @@ func orderedOwners(sets map[Owner]config.Document) []Owner {
 	ordered := append([]Owner(nil), ownerOrder...)
 	extra := make([]string, 0)
 	for owner := range sets {
-		if owner != OwnerOperator && owner != OwnerSparkrun {
+		if owner != OwnerOperator && owner != OwnerSparkrun && owner != OwnerRecipeProfiles {
 			extra = append(extra, string(owner))
 		}
 	}

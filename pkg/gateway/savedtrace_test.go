@@ -7,12 +7,14 @@ package gateway
 import (
 	"bytes"
 	"encoding/base64"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"sync"
 	"testing"
 
+	"github.com/sparksq/sparkroute/pkg/config"
 	"github.com/sparksq/sparkroute/pkg/identity"
 	"github.com/sparksq/sparkroute/pkg/ledger"
 	"github.com/sparksq/sparkroute/pkg/savedtrace"
@@ -305,3 +307,53 @@ func (r *savedTraceCollector) snapshot() []savedtrace.Record {
 }
 
 var _ savedtrace.Recorder = (*savedTraceCollector)(nil)
+
+func TestEphemeralInferenceDoesNotSavePayloadTraces(t *testing.T) {
+	expectedStore := false
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var input struct {
+			Store bool `json:"store"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&input); err != nil || input.Store != expectedStore {
+			t.Errorf("store = %v, want %v, decode: %v", input.Store, expectedStore, err)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"choices":[{"message":{"role":"assistant","content":"answer"}}]}`))
+	}))
+	defer upstream.Close()
+	recorder := &savedTraceCollector{}
+	document := proxyDocument(upstream.URL)
+	document.VirtualModels[0].RequestOverrides = map[string]map[string]json.RawMessage{"chat_completions": {"store": json.RawMessage("true")}}
+	document.Deployments[0].Capabilities = append(document.Deployments[0].Capabilities, config.CapabilityStoredCompletion)
+	profileParent := document.VirtualModels[0]
+	profileParent.Name, profileParent.Aliases, profileParent.RequestOverrides = "other", nil, nil
+	document.VirtualModels = append(document.VirtualModels, profileParent, config.VirtualModel{Name: "other:quick", Profile: &config.RequestProfileBinding{Parent: "other", Selector: "quick", Manual: true}})
+	handler, err := NewDataHandler(document, DataOptions{SavedTraces: recorder, MaxSavedTraceBytes: 1 << 20})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, testcase := range []struct {
+		model     string
+		ephemeral bool
+	}{{"default", true}, {"other:quick", true}, {"default", false}} {
+		ephemeral := testcase.ephemeral
+		expectedStore = !ephemeral
+		target := handler
+		if ephemeral {
+			target = WithoutSavedTraces(handler)
+		}
+		request := httptest.NewRequest("POST", "/v1/chat/completions", strings.NewReader(`{"model":"`+testcase.model+`","messages":[{"role":"user","content":"private test"}],"store":false}`))
+		request.Header.Set("Content-Type", "application/json")
+		response := httptest.NewRecorder()
+		target.ServeHTTP(response, request)
+		if response.Code != 200 {
+			t.Fatal(response.Code, response.Body)
+		}
+		if ephemeral && len(recorder.snapshot()) != 0 {
+			t.Fatal("ephemeral payload was persisted")
+		}
+	}
+	if len(recorder.snapshot()) != 1 {
+		t.Fatal("ordinary trace capture was disabled")
+	}
+}

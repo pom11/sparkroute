@@ -304,6 +304,7 @@ func run(ctx context.Context, args []string, stdout io.Writer, logger *slog.Logg
 		30*time.Second,
 		"interval for discovering and refreshing Sparkrun endpoints",
 	)
+	sparkrunProfileRefresh := flags.Duration("sparkrun-profile-refresh-interval", time.Minute, "interval for following recipe request profile changes")
 	sparkrunStopTimeout := flags.Duration(
 		"sparkrun-stop-timeout",
 		2*time.Minute,
@@ -758,8 +759,9 @@ func run(ctx context.Context, args []string, stdout io.Writer, logger *slog.Logg
 		ClientCredentials:  clientCredentialManager, ManagedConfig: managedConfigStore,
 		ProviderAuth:    providerAuth,
 		SparkrunCommand: *sparkrunCommand, SparkrunEndpointTTL: *sparkrunEndpointTTL,
-		SparkrunReconcile:   *sparkrunReconcileInterval,
-		SparkrunStopTimeout: *sparkrunStopTimeout,
+		SparkrunReconcile:      *sparkrunReconcileInterval,
+		SparkrunProfileRefresh: *sparkrunProfileRefresh,
+		SparkrunStopTimeout:    *sparkrunStopTimeout,
 	}
 	initialRuntime, err := buildRuntimeGeneration(document, configVersion, runtimeOptions)
 	if err != nil {

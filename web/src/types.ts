@@ -199,7 +199,7 @@ export interface DiscoveredMetadataState {
 }
 
 
-export type ManagedConfigurationOwner = "operator" | "sparkrun";
+export type ManagedConfigurationOwner = "operator" | "sparkrun" | "recipe_profiles";
 
 export interface ManagedConfigurationSetMetadata {
   owner: ManagedConfigurationOwner;

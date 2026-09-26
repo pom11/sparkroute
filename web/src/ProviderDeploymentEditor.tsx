@@ -1258,6 +1258,7 @@ function inspectDocument(document: ConfigurationDocument): {
   const virtualModels: JSONObject[] = [];
   for (const [modelIndex, model] of document.virtual_models.entries()) {
     if (!isObject(model)) return { error: `virtual_models[${modelIndex}] must be an object.` };
+    if (isObject(model.profile) && typeof model.profile.parent === "string") { virtualModels.push(model); continue; }
     if (!Array.isArray(model.pools)) return { error: `virtual_models[${modelIndex}].pools must be an array.` };
     for (const [poolIndex, pool] of model.pools.entries()) {
       if (!isObject(pool) || !Array.isArray(pool.targets)) return { error: `virtual_models[${modelIndex}].pools[${poolIndex}] must contain a targets array.` };
@@ -1283,7 +1284,7 @@ function inspectHeaders(value: unknown, path: string) {
 }
 
 function renameDeploymentTargets(models: JSONObject[], oldName: string, nextName: string) {
-  return models.map((model) => ({
+  return models.map((model) => isObject(model.profile) ? model : ({
     ...model,
     pools: objectArray(model.pools).map((pool) => ({
       ...pool,

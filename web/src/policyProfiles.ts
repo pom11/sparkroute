@@ -56,6 +56,7 @@ export function copyInlineProfile(doc: ConfigurationDocument, model: JSONObject,
 export function policyModels(doc: ConfigurationDocument, generated?: ConfigurationDocument) {
   const all = [...rows(doc.virtual_models).map(model => ({ model, generated: false })), ...rows(generated?.virtual_models).map(model => ({ model, generated: true }))];
   return all.filter(({ model }) => {
+    if (object(model.profile).parent) return !all.some(({model:parent}) => parent.name === object(model.profile).parent);
     const name = String(model.name), separator = name.lastIndexOf(":");
     return !model.request_overrides || separator < 0 || !all.some(({ model: parent }) => parent.name === name.slice(0, separator));
   });

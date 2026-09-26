@@ -54,13 +54,14 @@ func (e *AdmissionError) Unwrap() error {
 // Target binds one deployment to static, discovered, or activatable endpoint
 // behavior. Activatable targets carry only published configuration values.
 type Target struct {
-	Deployment    string
-	UpstreamModel string
-	LogicalModels []string
-	Protocol      string
-	Source        EndpointSource
-	Controller    string
-	Binding       Binding
+	DiscoveryJobIDs []string
+	Deployment      string
+	UpstreamModel   string
+	LogicalModels   []string
+	Protocol        string
+	Source          EndpointSource
+	Controller      string
+	Binding         Binding
 }
 
 type AdmissionRequest struct {

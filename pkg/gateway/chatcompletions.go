@@ -208,7 +208,7 @@ func (h *chatCompletionsHandler) ServeHTTP(w http.ResponseWriter, request *http.
 	)
 	request = request.WithContext(requestContext)
 	traceRecorder := h.savedTraces
-	if internalInvocation {
+	if internalInvocation || request.Context().Value(ephemeralInferenceKey{}) == true {
 		traceRecorder = nil
 	}
 	traceWriter := newSavedTraceResponseWriter(
@@ -521,7 +521,15 @@ func (h *chatCompletionsHandler) ServeHTTP(w http.ResponseWriter, request *http.
 		)
 		return
 	}
-	if overrides := model.RequestOverrides[h.operation.String()]; len(overrides) > 0 {
+	if request.Context().Value(ephemeralInferenceKey{}) == true {
+		// Parent legacy overrides also feed linked-profile preparation later.
+		model.RequestOverrides = config.CloneProfileValue(model.RequestOverrides)
+		for _, values := range model.RequestOverrides {
+			delete(values, "store")
+			delete(values, "background")
+		}
+	}
+	if overrides := model.RequestOverrides[h.operation.String()]; model.Profile == nil && len(overrides) > 0 {
 		raw, err = applyRequestOverrides(raw, overrides)
 		if err == nil && int64(len(raw)) > h.maxRequestBytes {
 			err = fmt.Errorf("augmented request body is too large")
@@ -531,6 +539,22 @@ func (h *chatCompletionsHandler) ServeHTTP(w http.ResponseWriter, request *http.
 		}
 		if err != nil {
 			fail(http.StatusBadRequest, ledger.OutcomeRejected, "request_profile_error", "model request profile produced an invalid request")
+			return
+		}
+	}
+	// Trusted ephemeral callers must remain stateless after legacy overrides.
+	if request.Context().Value(ephemeralInferenceKey{}) == true &&
+		(h.operation == openAIOperationChatCompletions || h.operation == openAIOperationResponses) {
+		ephemeral := map[string]json.RawMessage{"store": json.RawMessage("false")}
+		if h.operation == openAIOperationResponses {
+			ephemeral["background"] = json.RawMessage("false")
+		}
+		raw, err = applyRequestOverrides(raw, ephemeral)
+		if err == nil {
+			envelope, _, _, err = h.operation.decodeRequest(raw, pathModel)
+		}
+		if err != nil {
+			fail(http.StatusBadRequest, ledger.OutcomeRejected, "invalid_request", "cannot prepare ephemeral request")
 			return
 		}
 	}
@@ -861,6 +885,10 @@ func (h *chatCompletionsHandler) ServeHTTP(w http.ResponseWriter, request *http.
 		}
 	}
 	requiredCapabilities, err := h.operation.detectCapabilities(envelope, streaming)
+	if model.Profile != nil {
+		requiredCapabilities = nil
+		err = nil
+	}
 	if err != nil {
 		fail(http.StatusBadRequest, ledger.OutcomeRejected, requestValidationCode(err), err.Error())
 		return
@@ -916,160 +944,173 @@ func (h *chatCompletionsHandler) ServeHTTP(w http.ResponseWriter, request *http.
 		}
 		return found, true
 	}
-	if h.operation == openAIOperationChatCompletions {
-		hasOpenAITarget, ok := hasNativeProtocolTarget(config.ProtocolOpenAI)
-		if !ok {
-			return
-		}
-		hasBedrockTarget, ok := hasNativeProtocolTarget(config.ProtocolBedrock)
-		if !ok {
-			return
-		}
-		hasAnthropicTarget, ok := hasNativeProtocolTarget(config.ProtocolAnthropic)
-		if !ok {
-			return
-		}
-		hasGeminiTarget, ok := hasNativeProtocolTarget(config.ProtocolGemini)
-		if !ok {
-			return
-		}
-		crossDialectFailures := make([]string, 0, 3)
-		if hasBedrockTarget {
-			bedrockChatBody, bedrockChatError =
-				translateChatCompletionsRequestToBedrock(envelope)
-			if bedrockChatError != nil {
-				crossDialectFailures = append(
-					crossDialectFailures,
-					fmt.Sprintf("Bedrock Converse: %v", bedrockChatError),
-				)
+	if model.Profile == nil {
+		if h.operation == openAIOperationChatCompletions {
+			hasOpenAITarget, ok := hasNativeProtocolTarget(config.ProtocolOpenAI)
+			if !ok {
+				return
 			}
-		}
-		if hasAnthropicTarget {
-			anthropicChatBody, anthropicChatError =
-				translateChatCompletionsRequestToAnthropic(envelope)
-			if anthropicChatError != nil {
-				crossDialectFailures = append(
-					crossDialectFailures,
-					fmt.Sprintf("Anthropic Messages: %v", anthropicChatError),
-				)
+			hasBedrockTarget, ok := hasNativeProtocolTarget(config.ProtocolBedrock)
+			if !ok {
+				return
 			}
-		}
-		if hasGeminiTarget {
-			geminiChatBody, geminiChatError =
-				translateChatCompletionsRequestToGemini(envelope)
-			if geminiChatError != nil {
-				crossDialectFailures = append(
-					crossDialectFailures,
-					fmt.Sprintf("Gemini GenerateContent: %v", geminiChatError),
-				)
+			hasAnthropicTarget, ok := hasNativeProtocolTarget(config.ProtocolAnthropic)
+			if !ok {
+				return
 			}
-		}
-		switch len(crossDialectFailures) {
-		case 1:
-			for _, candidate := range []error{
-				bedrockChatError,
-				anthropicChatError,
-				geminiChatError,
-			} {
-				if candidate != nil {
-					crossDialectError = candidate
-					break
-				}
+			hasGeminiTarget, ok := hasNativeProtocolTarget(config.ProtocolGemini)
+			if !ok {
+				return
 			}
-		case 2, 3:
-			crossDialectError = unsupportedFeature(
-				"request cannot be represented by a configured cross-dialect target: %s",
-				strings.Join(crossDialectFailures, "; "),
-			)
-		}
-		hasCompatibleCrossDialectTarget :=
-			hasBedrockTarget && bedrockChatError == nil ||
-				hasAnthropicTarget && anthropicChatError == nil ||
-				hasGeminiTarget && geminiChatError == nil
-		hasCrossDialectTarget := hasBedrockTarget ||
-			hasAnthropicTarget ||
-			hasGeminiTarget
-		if !hasCrossDialectTarget {
-			crossDialectError = nil
-		}
-		if !hasOpenAITarget &&
-			hasCrossDialectTarget &&
-			!hasCompatibleCrossDialectTarget {
-			configuredFailures := make([]string, 0, 3)
-			for _, failure := range []struct {
-				configured bool
-				name       string
-				err        error
-			}{
-				{hasBedrockTarget, "Bedrock Converse", bedrockChatError},
-				{hasAnthropicTarget, "Anthropic Messages", anthropicChatError},
-				{hasGeminiTarget, "Gemini GenerateContent", geminiChatError},
-			} {
-				if failure.configured {
-					configuredFailures = append(
-						configuredFailures,
-						fmt.Sprintf(
-							"%s: %v",
-							failure.name,
-							failure.err,
-						),
+			crossDialectFailures := make([]string, 0, 3)
+			if hasBedrockTarget {
+				bedrockChatBody, bedrockChatError =
+					translateChatCompletionsRequestToBedrock(envelope)
+				if bedrockChatError != nil {
+					crossDialectFailures = append(
+						crossDialectFailures,
+						fmt.Sprintf("Bedrock Converse: %v", bedrockChatError),
 					)
-					crossDialectError = failure.err
 				}
 			}
-			if len(configuredFailures) > 1 {
+			if hasAnthropicTarget {
+				anthropicChatBody, anthropicChatError =
+					translateChatCompletionsRequestToAnthropic(envelope)
+				if anthropicChatError != nil {
+					crossDialectFailures = append(
+						crossDialectFailures,
+						fmt.Sprintf("Anthropic Messages: %v", anthropicChatError),
+					)
+				}
+			}
+			if hasGeminiTarget {
+				geminiChatBody, geminiChatError =
+					translateChatCompletionsRequestToGemini(envelope)
+				if geminiChatError != nil {
+					crossDialectFailures = append(
+						crossDialectFailures,
+						fmt.Sprintf("Gemini GenerateContent: %v", geminiChatError),
+					)
+				}
+			}
+			switch len(crossDialectFailures) {
+			case 1:
+				for _, candidate := range []error{
+					bedrockChatError,
+					anthropicChatError,
+					geminiChatError,
+				} {
+					if candidate != nil {
+						crossDialectError = candidate
+						break
+					}
+				}
+			case 2, 3:
 				crossDialectError = unsupportedFeature(
-					"request cannot be represented by any configured cross-dialect target: %s",
-					strings.Join(configuredFailures, "; "),
+					"request cannot be represented by a configured cross-dialect target: %s",
+					strings.Join(crossDialectFailures, "; "),
 				)
 			}
-			fail(
-				http.StatusBadRequest,
-				ledger.OutcomeRejected,
-				requestValidationCode(crossDialectError),
-				crossDialectError.Error(),
-			)
-			return
+			hasCompatibleCrossDialectTarget :=
+				hasBedrockTarget && bedrockChatError == nil ||
+					hasAnthropicTarget && anthropicChatError == nil ||
+					hasGeminiTarget && geminiChatError == nil
+			hasCrossDialectTarget := hasBedrockTarget ||
+				hasAnthropicTarget ||
+				hasGeminiTarget
+			if !hasCrossDialectTarget {
+				crossDialectError = nil
+			}
+			if !hasOpenAITarget &&
+				hasCrossDialectTarget &&
+				!hasCompatibleCrossDialectTarget {
+				configuredFailures := make([]string, 0, 3)
+				for _, failure := range []struct {
+					configured bool
+					name       string
+					err        error
+				}{
+					{hasBedrockTarget, "Bedrock Converse", bedrockChatError},
+					{hasAnthropicTarget, "Anthropic Messages", anthropicChatError},
+					{hasGeminiTarget, "Gemini GenerateContent", geminiChatError},
+				} {
+					if failure.configured {
+						configuredFailures = append(
+							configuredFailures,
+							fmt.Sprintf(
+								"%s: %v",
+								failure.name,
+								failure.err,
+							),
+						)
+						crossDialectError = failure.err
+					}
+				}
+				if len(configuredFailures) > 1 {
+					crossDialectError = unsupportedFeature(
+						"request cannot be represented by any configured cross-dialect target: %s",
+						strings.Join(configuredFailures, "; "),
+					)
+				}
+				fail(
+					http.StatusBadRequest,
+					ledger.OutcomeRejected,
+					requestValidationCode(crossDialectError),
+					crossDialectError.Error(),
+				)
+				return
+			}
+		}
+		if h.operation == openAIOperationResponses {
+			responsesChatBody, responsesChatError =
+				translateResponsesRequestToChat(raw)
+			crossDialectError = responsesChatError
+		}
+		if h.operation == openAIOperationEmbeddings {
+			hasOpenAITarget, ok := hasNativeProtocolTarget(config.ProtocolOpenAI)
+			if !ok {
+				return
+			}
+			hasGeminiTarget, ok := hasNativeProtocolTarget(config.ProtocolGemini)
+			if !ok {
+				return
+			}
+			if hasGeminiTarget {
+				geminiEmbeddingBody,
+					geminiEmbeddingDimensions,
+					geminiEmbeddingInputCount,
+					geminiEmbeddingError =
+					translateOpenAIEmbeddingsRequestToGemini(envelope)
+				crossDialectError = geminiEmbeddingError
+			}
+			if !hasOpenAITarget &&
+				hasGeminiTarget &&
+				geminiEmbeddingError != nil {
+				fail(
+					http.StatusBadRequest,
+					ledger.OutcomeRejected,
+					requestValidationCode(geminiEmbeddingError),
+					geminiEmbeddingError.Error(),
+				)
+				return
+			}
 		}
 	}
-	if h.operation == openAIOperationResponses {
-		responsesChatBody, responsesChatError =
-			translateResponsesRequestToChat(raw)
-		crossDialectError = responsesChatError
-	}
-	if h.operation == openAIOperationEmbeddings {
-		hasOpenAITarget, ok := hasNativeProtocolTarget(config.ProtocolOpenAI)
-		if !ok {
-			return
-		}
-		hasGeminiTarget, ok := hasNativeProtocolTarget(config.ProtocolGemini)
-		if !ok {
-			return
-		}
-		if hasGeminiTarget {
-			geminiEmbeddingBody,
-				geminiEmbeddingDimensions,
-				geminiEmbeddingInputCount,
-				geminiEmbeddingError =
-				translateOpenAIEmbeddingsRequestToGemini(envelope)
-			crossDialectError = geminiEmbeddingError
-		}
-		if !hasOpenAITarget &&
-			hasGeminiTarget &&
-			geminiEmbeddingError != nil {
-			fail(
-				http.StatusBadRequest,
-				ledger.OutcomeRejected,
-				requestValidationCode(geminiEmbeddingError),
-				geminiEmbeddingError.Error(),
-			)
-			return
-		}
-	}
+	profileRequests := map[string]preparedProfileRequest{}
 	protocolResolver := func(
 		provider config.Provider,
 		deployment config.Deployment,
 	) (routing.ProtocolRoute, bool) {
+		if model.Profile != nil {
+			prepared, profileErr := h.prepareProfileRequest(raw, pathModel, streaming, model, provider, deployment)
+			if profileErr != nil {
+				crossDialectError = profileErr
+				return routing.ProtocolRoute{}, false
+			}
+			profileRequests[deployment.Name] = prepared
+			return prepared.route, true
+		}
+
 		ingress := config.Protocol(h.operation.protocol())
 		// A Responses-native endpoint need not expose Chat Completions.
 		// Chat-to-Responses translation is not currently implemented.
@@ -1440,6 +1481,10 @@ func (h *chatCompletionsHandler) ServeHTTP(w http.ResponseWriter, request *http.
 		AllowInternal:    internalInvocation,
 	})
 	if err != nil {
+		if model.Profile != nil && errors.Is(err, routing.ErrUnsupportedSemantics) {
+			fail(http.StatusBadRequest, ledger.OutcomeRejected, "request_profile_unsupported", "no target implements the requested profile and API with compatible parameters")
+			return
+		}
 		if errors.Is(err, routing.ErrModelNotFound) {
 			fail(
 				http.StatusNotFound,
@@ -1659,6 +1704,12 @@ func (h *chatCompletionsHandler) ServeHTTP(w http.ResponseWriter, request *http.
 				continue
 			}
 		}
+		candidateBytes := int64(len(raw))
+		candidateCapabilities := plan.RequiredCapabilities
+		if prepared, ok := profileRequests[selection.Deployment.Name]; ok {
+			candidateBytes = int64(len(prepared.body))
+			candidateCapabilities = append(append([]config.Capability(nil), candidateCapabilities...), prepared.route.RequiredCapabilities...)
+		}
 		attempts++
 		attemptStarted := time.Now()
 		canRetry := attempts < plan.MaxAttempts && index+1 < len(plan.Candidates)
@@ -1666,7 +1717,7 @@ func (h *chatCompletionsHandler) ServeHTTP(w http.ResponseWriter, request *http.
 			selection,
 			attempts,
 			lease,
-			plan.RequiredCapabilities,
+			candidateCapabilities,
 			activeRetryReason,
 			activeRetryDelay,
 		)
@@ -1712,7 +1763,7 @@ func (h *chatCompletionsHandler) ServeHTTP(w http.ResponseWriter, request *http.
 				attemptExecutionContext,
 				lifecycle.AdmissionRequest{
 					Deployment: selection.Deployment.Name,
-					BodyBytes:  int64(len(raw)),
+					BodyBytes:  candidateBytes,
 					Features: lifecycle.RequestFeatures{
 						VirtualModel: plan.VirtualModel,
 						Protocol:     string(selectionUpstreamProtocol(selection)),
@@ -1825,7 +1876,14 @@ func (h *chatCompletionsHandler) ServeHTTP(w http.ResponseWriter, request *http.
 		runtimeAttempt := runtimeAttemptLease{coordinator: h.lifecycle, lease: runtimeLease}
 		upstreamProtocol := selectionUpstreamProtocol(selection)
 		var upstreamBody []byte
-		if h.operation == openAIOperationChatCompletions &&
+		if model.Profile != nil {
+			prepared := profileRequests[selection.Deployment.Name]
+			upstreamBody = append([]byte(nil), prepared.body...)
+			responseState.embeddingDimensions = prepared.embeddingDimensions
+			responseState.embeddingInputCount = prepared.embeddingInputCount
+			observation.setSavedTraceMetadata("sparkroute.request_profile", model.Profile.Selector)
+			observation.setSavedTraceMetadata("sparkroute.request_profile_revision", config.ProfileDigest(selection.Deployment.RequestProfiles))
+		} else if h.operation == openAIOperationChatCompletions &&
 			upstreamProtocol == config.ProtocolBedrock {
 			upstreamBody = append([]byte(nil), bedrockChatBody...)
 		} else if h.operation == openAIOperationChatCompletions &&

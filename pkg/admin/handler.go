@@ -46,6 +46,8 @@ type ReadyEndpoints interface {
 }
 
 type Options struct {
+	// ChatTest uses the normal data plane with saved payload traces disabled.
+	ChatTest        http.Handler
 	TraceReader     savedtrace.Reader
 	SparkrunControl interface {
 		WorkloadAction(context.Context, string, string, string) (sparkrun.WorkloadInfo, error)
@@ -190,6 +192,10 @@ func NewHandler(
 	mux.HandleFunc("/v1/config/validate", h.validateConfiguration)
 	mux.HandleFunc("/v1/config/simulate-routing", h.simulateRouting)
 	privileged := h.authenticated || h.insecureAdmin
+	if options.ChatTest != nil && privileged {
+		mux.HandleFunc("/v1/chat-test", h.serveChatTest)
+		mux.HandleFunc("/v1/chat-test/models", h.serveChatTestModels)
+	}
 	if options.TraceReader != nil && privileged {
 		mux.HandleFunc("/v1/saved-traces/export", h.exportSavedTraces)
 	}
@@ -270,6 +276,9 @@ func NewHandler(
 // to status readers. Hidden models are included because status_read is an
 // administrative role; internal guardrail-only models remain excluded.
 func servedModelNames(document config.Document) []string {
+	if resolved, err := document.ResolveRequestProfiles(); err == nil {
+		document = resolved
+	}
 	seen := make(map[string]struct{})
 	for _, model := range document.VirtualModels {
 		if model.Visibility.Effective() == config.ModelVisibilityInternal {
@@ -422,6 +431,7 @@ func (h *handler) serveBootstrap(
 			ID: principal.ID, Roles: append([]string(nil), principal.Roles...),
 		}
 		bootstrap.Features[adminapi.FeatureSavedTraceExport] = h.options.TraceReader != nil && hasRole(principal, RoleTraceReadAll)
+		bootstrap.Features["chat_test"] = h.options.ChatTest != nil && hasRole(principal, RoleConfigWrite)
 		bootstrap.Features["sparkrun_controls"] = h.options.SparkrunControl != nil && hasRole(principal, RoleConfigWrite)
 		bootstrap.Features["sparkrun"] = h.options.SparkrunCatalog != nil
 		bootstrap.Features["sparkrun_catalog"] = h.options.SparkrunCatalog != nil && hasRole(principal, RoleConfigRead)

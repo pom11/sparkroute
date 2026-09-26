@@ -31,7 +31,13 @@ export function visibleSparkrunDocument(document: ConfigurationDocument, generat
   if (!generated) return generated;
   const excluded = new Set(excludedSparkrunDeployments(document));
   if (!excluded.size) return generated;
-  return {...generated,
+  for (const aggregate of entries(generated.deployments)) {
+    if (!excluded.has(name(aggregate.name)) || object(aggregate.endpoint_source).type !== "discovered" || (Array.isArray(aggregate.discovery_job_ids) && aggregate.discovery_job_ids.length)) continue;
+    for (const deployment of entries(generated.deployments)) {
+      if (object(deployment.endpoint_source).type === "discovered" && deployment.provider === aggregate.provider && deployment.model === aggregate.model) excluded.add(name(deployment.name));
+    }
+  }
+  const result: {deployments: ObjectValue[]; virtual_models: ObjectValue[]} = {...generated,
     deployments: entries(generated.deployments).filter(deployment => !excluded.has(name(deployment.name))),
     virtual_models: entries(generated.virtual_models).flatMap(model => {
       let changed = false;
@@ -44,6 +50,9 @@ export function visibleSparkrunDocument(document: ConfigurationDocument, generat
       return changed && !pools.length ? [] : [{...model, pools}];
     }),
   };
+  const parents = new Set(result.virtual_models.map(model=>name(model.name)));
+  result.virtual_models = result.virtual_models.filter(model=>!object(model.profile).parent || parents.has(name(object(model.profile).parent)));
+  return result;
 }
 
 export function modelDeploymentNames(model: ObjectValue): string[] {

@@ -220,10 +220,10 @@ func TestRecipeNativeAPIChoicesPersistAndEdit(t *testing.T) {
 func TestRecipeGatewayDefaultsCreateProfilesOnOneDeployment(t *testing.T) {
 	f := &catalogFixture{revision: "same-workload", settings: RecipeSettings{
 		Capabilities: []config.Capability{config.CapabilityVision},
-		RequestProfiles: map[string]map[string]map[string]json.RawMessage{
+		RequestProfiles: profileImplementations(map[string]map[string]map[string]json.RawMessage{
 			"low":   {"chat_completions": {"chat_template_kwargs": json.RawMessage(`{"enable_thinking":false}`)}, "responses": {"reasoning": json.RawMessage(`{"effort":"low"}`)}},
 			"xhigh": {"chat_completions": {"reasoning_effort": json.RawMessage(`"xhigh"`)}},
-		},
+		}),
 	}}
 	empty := managed.EmptyDocument()
 	input := RecipeDraft{Reference: "catalog:123", RecipeRevision: f.revision, Name: "coding", Aliases: []string{"code"}, Cluster: "lab"}
@@ -240,13 +240,14 @@ func TestRecipeGatewayDefaultsCreateProfilesOnOneDeployment(t *testing.T) {
 	if len(doc.Deployments[0].Capabilities) != 1 || doc.Deployments[0].Capabilities[0] != config.CapabilityVision {
 		t.Fatal("vision missing", doc)
 	}
-	for _, model := range doc.VirtualModels {
+	resolved, _ := doc.ResolveRequestProfiles()
+	for _, model := range resolved.VirtualModels {
 		if model.Pools[0].Targets[0].Deployment != id {
 			t.Fatal("profile created another workload")
 		}
 	}
 	low, ok := doc.CanonicalModel("code:low")
-	if !ok || low.Name != "coding:low" || string(low.RequestOverrides["responses"]["reasoning"]) != `{"effort":"low"}` {
+	if !ok || low.Name != "coding:low" || low.Profile == nil || string(doc.Deployments[0].RequestProfiles["low"].IngressOverrides["responses"]["reasoning"]) != `{"effort":"low"}` {
 		t.Fatal(low)
 	}
 	// A different public name can share generated workload settings and import its profiles.
@@ -270,9 +271,9 @@ func TestRecipeGatewayDefaultsCreateProfilesOnOneDeployment(t *testing.T) {
 func TestRecipeProfilesRejectNameCollisionsAndInvalidOverrides(t *testing.T) {
 	empty := managed.EmptyDocument()
 	input := RecipeDraft{Reference: "catalog:123", RecipeRevision: "r", Name: "coding", Cluster: "lab"}
-	f := &catalogFixture{revision: "r", settings: RecipeSettings{RequestProfiles: map[string]map[string]map[string]json.RawMessage{
+	f := &catalogFixture{revision: "r", settings: RecipeSettings{RequestProfiles: profileImplementations(map[string]map[string]map[string]json.RawMessage{
 		"low": {"chat_completions": {"temperature": json.RawMessage(`0.2`)}},
-	}}}
+	})}}
 	for _, model := range []config.VirtualModel{{Name: "coding:low"}, {Name: "other", Aliases: []string{"coding:low"}}} {
 		generated := empty
 		generated.VirtualModels = []config.VirtualModel{model}
@@ -280,12 +281,30 @@ func TestRecipeProfilesRejectNameCollisionsAndInvalidOverrides(t *testing.T) {
 			t.Fatal("accepted collision", err)
 		}
 	}
-	f.settings.RequestProfiles["low"]["chat_completions"] = map[string]json.RawMessage{"model": json.RawMessage(`"other"`)}
+	f.settings.RequestProfiles["low"].IngressOverrides["chat_completions"] = map[string]json.RawMessage{"model": json.RawMessage(`"other"`)}
 	if _, _, _, err := PrepareRecipeDraft(context.Background(), f, empty, empty, input); err == nil || !strings.Contains(err.Error(), "protocol-owned") {
 		t.Fatal("accepted protected field", err)
 	}
-	f.settings.RequestProfiles = map[string]map[string]map[string]json.RawMessage{"low:bad": {"responses": {"temperature": json.RawMessage(`0.2`)}}}
+	f.settings.RequestProfiles = profileImplementations(map[string]map[string]map[string]json.RawMessage{"low:bad": {"responses": {"temperature": json.RawMessage(`0.2`)}}})
 	if _, _, _, err := PrepareRecipeDraft(context.Background(), f, empty, empty, input); err == nil {
 		t.Fatal("accepted invalid selector")
+	}
+}
+
+func profileImplementations(values map[string]map[string]map[string]json.RawMessage) map[string]config.RequestProfileImplementation {
+	result := map[string]config.RequestProfileImplementation{}
+	for selector, overrides := range values {
+		result[selector] = config.RequestProfileImplementation{IngressOverrides: overrides}
+	}
+	return result
+}
+
+func TestRecipeDraftRejectsInheritedProfileAliasCollision(t *testing.T) {
+	fixture := &catalogFixture{revision: "same", settings: RecipeSettings{RequestProfiles: map[string]config.RequestProfileImplementation{"low": {SupportedOperations: []string{"chat_completions"}}}}}
+	operator := managed.EmptyDocument()
+	operator.VirtualModels = []config.VirtualModel{{Name: "code:low"}}
+	_, _, _, err := PrepareRecipeDraft(context.Background(), fixture, operator, managed.EmptyDocument(), RecipeDraft{Reference: "catalog:123", RecipeRevision: "same", Name: "coding", Aliases: []string{"code"}, Cluster: "lab"})
+	if err == nil || !strings.Contains(err.Error(), "code:low") {
+		t.Fatalf("inherited alias collision accepted: %v", err)
 	}
 }

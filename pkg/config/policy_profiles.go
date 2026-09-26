@@ -23,6 +23,11 @@ type ModelPolicyAssignment struct {
 // assignments into private model copies. Authored configuration is not changed.
 // Full Document.Validate additionally checks references in effective guardrails.
 func (d Document) ResolveModelPolicies() (Document, error) {
+	var profileErr error
+	d, profileErr = d.ResolveRequestProfiles()
+	if profileErr != nil {
+		return Document{}, profileErr
+	}
 	if len(d.PIIProfiles) > 256 || len(d.GuardrailProfiles) > 256 || len(d.ModelPolicies) > 4096 {
 		return Document{}, fmt.Errorf("policy profiles: at most 256 profiles of each type and 4096 model assignments are supported")
 	}
@@ -84,12 +89,24 @@ func (d Document) ResolveModelPolicies() (Document, error) {
 		// The UI groups explicit request variants beneath their immediate parent.
 		// Walk the same hierarchy, with the nearest field assignment taking priority.
 		child := model
-		for len(child.RequestOverrides) > 0 {
+		visited := map[string]bool{}
+		for len(child.RequestOverrides) > 0 || child.Profile != nil {
+			if visited[child.Name] {
+				return Document{}, fmt.Errorf("model %q has cyclic profile policy inheritance", model.Name)
+			}
+			visited[child.Name] = true
+			parentName := ""
+			if child.Profile != nil {
+				parentName = child.Profile.Parent
+			}
 			separator := strings.LastIndex(child.Name, ":")
-			if separator < 0 {
+			if separator < 0 && parentName == "" {
 				break
 			}
-			parent, exists := canonical[child.Name[:separator]]
+			if parentName == "" {
+				parentName = child.Name[:separator]
+			}
+			parent, exists := canonical[parentName]
 			if !exists {
 				break
 			}

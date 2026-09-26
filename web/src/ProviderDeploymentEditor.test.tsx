@@ -158,3 +158,12 @@ describe("Native provider configuration", () => {
     expect(fetch).not.toHaveBeenCalled();
   });
 });
+
+
+it("edits providers after recipe profiles inherit their parent's routing", () => {
+ const linked = {name:"coding:quick", profile:{parent:"coding",selector:"quick"}, pools:null};
+ render(<Editor initial={{providers:[provider],deployments:[],virtual_models:[{name:"coding",pools:[]},linked]}} />);
+ expect(screen.queryByText("Provider editor unavailable")).not.toBeInTheDocument();
+ fireEvent.change(screen.getByLabelText("Provider name"), {target:{value:"renamed"}});
+ expect(draft().virtual_models[1]).toEqual(linked);
+});

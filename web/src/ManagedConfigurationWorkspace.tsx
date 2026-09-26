@@ -336,12 +336,12 @@ export function ManagedConfigurationWorkspace({
                 <TraceSettingsEditor document={operatorParsed.document} disabled={!canEdit || Boolean(busy) || recipeWizard} onChange={structuredChange}/>
                 <MMProjectionSettingsEditor document={operatorParsed.document} disabled={!canEdit || Boolean(busy) || recipeWizard} onChange={structuredChange} token={token} canReadStatus={Boolean(bootstrap.features.status)} runtimeRevision={runtimeRevision}/>
               </div>
-              {(["privacy", "guardrails"] as const).map(page => <div key={page} hidden={section !== page}><PolicyProfilesEditor kind={page === "privacy" ? "pii" : "guardrails"} document={operatorParsed.document!} readOnlyDocument={generatedDocument} disabled={!canEdit || Boolean(busy) || recipeWizard} onChange={structuredChange} /></div>)}
+              {(["privacy", "guardrails"] as const).map(page => <div key={page} hidden={section !== page}><PolicyProfilesEditor kind={page === "privacy" ? "pii" : "guardrails"} document={operatorParsed.document!} readOnlyDocument={{...generatedDocument, request_profile_sources: storedDocuments.recipe_profiles?.request_profile_sources}} disabled={!canEdit || Boolean(busy) || recipeWizard} onChange={structuredChange} /></div>)}
               <div hidden={section !== "models"}>
                 <VirtualModelEditor
                   disabled={!canEdit || Boolean(busy) || recipeWizard}
                   document={operatorParsed.document}
-                  readOnlyDocument={generatedDocument}
+                  readOnlyDocument={{...generatedDocument, request_profile_sources: storedDocuments.recipe_profiles?.request_profile_sources}}
                   allowGeneratedRemoval={Boolean(bootstrap.features.sparkrun_catalog)}
                   reservedModelNames={reservedModelNames}
                   extensions={virtualModelExtensions}
@@ -373,7 +373,7 @@ export function ManagedConfigurationWorkspace({
                 />
               </div>
               <div hidden={section !== "providers" && section !== "deployments"}>
-                <ProviderDeploymentEditor allowGeneratedRemoval={Boolean(bootstrap.features.sparkrun_catalog)} sparkrun={{enabled: Boolean(bootstrap.features.sparkrun_catalog), token, revision: storedRevision, onEditingChange: setRecipeWizard, onPrepared: (document, message) => { structuredChange(document); setNotice({kind: "info", text: message + " Validate, then Save to make it available. Saving does not launch it."}); }}} section={infrastructureSection.current} simplifiedCapabilities disabled={!canEdit || Boolean(busy)} document={operatorParsed.document} readOnlyDocument={generatedDocument} onChange={structuredChange} subscriptionAuth={{ token, enabled: Boolean(bootstrap.features.provider_auth) }} />
+                <ProviderDeploymentEditor allowGeneratedRemoval={Boolean(bootstrap.features.sparkrun_catalog)} sparkrun={{enabled: Boolean(bootstrap.features.sparkrun_catalog), token, revision: storedRevision, onEditingChange: setRecipeWizard, onPrepared: (document, message) => { structuredChange(document); setNotice({kind: "info", text: message + " Validate, then Save to make it available. Saving does not launch it."}); }}} section={infrastructureSection.current} simplifiedCapabilities disabled={!canEdit || Boolean(busy)} document={operatorParsed.document} readOnlyDocument={{...generatedDocument, request_profile_sources: storedDocuments.recipe_profiles?.request_profile_sources}} onChange={structuredChange} subscriptionAuth={{ token, enabled: Boolean(bootstrap.features.provider_auth) }} />
               </div>
               <div hidden={section !== "deployments"}>
                 <ExcludedSparkrunDeployments document={operatorParsed.document} generated={storedDocuments.sparkrun}

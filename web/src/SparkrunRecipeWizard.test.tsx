@@ -118,3 +118,14 @@ it("explains recipe capabilities and profiles before preparing the draft", async
  fireEvent.click(screen.getByRole("button", {name:"Add to draft"}));
  await waitFor(() => expect(onChange).toHaveBeenCalledOnce());
 });
+
+
+it("allows native API selection after resolving a recipe", async () => {
+ const {calls, onChange} = setup();
+ fireEvent.click((await screen.findAllByRole("button", {name: "Choose @registry/coder"}))[0]!);
+ await screen.findByLabelText("Public model name");
+ expect(screen.getByRole("checkbox", {name:"OpenAI (Chat Completions)"})).toBeVisible();
+ fireEvent.click(screen.getByRole("button", {name:"Add to draft"}));
+ await waitFor(() => expect(onChange).toHaveBeenCalledOnce());
+ expect(calls.find(call=>call.url.endsWith("recipe-draft"))!.body.recipe.native_apis).toEqual(["chat_completions"]);
+});

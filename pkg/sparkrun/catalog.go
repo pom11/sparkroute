@@ -11,7 +11,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
-	"regexp"
 	"slices"
 	"sort"
 	"strings"
@@ -43,37 +42,36 @@ type Operation struct {
 	Error       *BridgeError    `json:"error,omitempty"`
 }
 
-// RecipeSettings are defaults imported into operator configuration at creation.
-// Later operator edits remain authoritative; generated sets follow their recipe.
+// RecipeSettings supply deployment capabilities and profile implementations.
+// Profile sources follow recipe updates independently of operator model patches.
 type RecipeSettings struct {
-	Capabilities    []config.Capability                              `json:"capabilities,omitempty"`
-	RequestProfiles map[string]map[string]map[string]json.RawMessage `json:"request_profiles,omitempty"`
+	Capabilities    []config.Capability                            `json:"capabilities,omitempty"`
+	RequestProfiles map[string]config.RequestProfileImplementation `json:"request_profiles,omitempty"`
 }
 
-var recipeProfileSelector = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$`)
-
 type RecipeDetails struct {
-	ModelMetadata    *modelrouter.DiscoveredModelMetadata `json:"model_metadata,omitempty"`
-	Sparkroute       RecipeSettings                       `json:"sparkroute,omitempty"`
-	Metadata         map[string]any                       `json:"metadata"`
-	HFModel          string                               `json:"hf_model"`
-	AvailablePlugins []string                             `json:"available_plugins"`
-	Reference        string                               `json:"reference"`
-	Name             string                               `json:"name"`
-	SourcePath       string                               `json:"source_path"`
-	Registry         *string                              `json:"registry"`
-	Model            string                               `json:"model"`
-	Runtime          string                               `json:"runtime"`
-	Description      string                               `json:"description"`
-	MinNodes         int                                  `json:"min_nodes"`
-	Defaults         map[string]any                       `json:"defaults"`
-	Revision         string                               `json:"recipe_revision"`
-	NativeAPIOptions []string                             `json:"native_api_options"`
-	NativeProtocols  []config.Protocol                    `json:"native_protocols"`
-	Capabilities     []config.Capability                  `json:"capabilities"`
-	RequiredPlugins  []string                             `json:"required_plugins"`
-	Trusted          bool                                 `json:"trusted"`
-	Issues           []map[string]any                     `json:"issues"`
+	ProfileSourceKind string                               `json:"profile_source_kind,omitempty"`
+	ModelMetadata     *modelrouter.DiscoveredModelMetadata `json:"model_metadata,omitempty"`
+	Sparkroute        RecipeSettings                       `json:"sparkroute,omitempty"`
+	Metadata          map[string]any                       `json:"metadata"`
+	HFModel           string                               `json:"hf_model"`
+	AvailablePlugins  []string                             `json:"available_plugins"`
+	Reference         string                               `json:"reference"`
+	Name              string                               `json:"name"`
+	SourcePath        string                               `json:"source_path"`
+	Registry          *string                              `json:"registry"`
+	Model             string                               `json:"model"`
+	Runtime           string                               `json:"runtime"`
+	Description       string                               `json:"description"`
+	MinNodes          int                                  `json:"min_nodes"`
+	Defaults          map[string]any                       `json:"defaults"`
+	Revision          string                               `json:"recipe_revision"`
+	NativeAPIOptions  []string                             `json:"native_api_options"`
+	NativeProtocols   []config.Protocol                    `json:"native_protocols"`
+	Capabilities      []config.Capability                  `json:"capabilities"`
+	RequiredPlugins   []string                             `json:"required_plugins"`
+	Trusted           bool                                 `json:"trusted"`
+	Issues            []map[string]any                     `json:"issues"`
 }
 
 type Cluster struct {
@@ -118,21 +116,8 @@ func resolveDetails(ctx context.Context, catalog Catalog, reference string, over
 			details.Capabilities = append(details.Capabilities, capability)
 		}
 	}
-	if len(details.Sparkroute.RequestProfiles) > 64 {
-		return details, fmt.Errorf("sparkroute.request_profiles: at most 64 profiles allowed")
-	}
-	for selector, overrides := range details.Sparkroute.RequestProfiles {
-		if !recipeProfileSelector.MatchString(selector) || len(overrides) == 0 {
-			return details, fmt.Errorf("sparkroute.request_profiles: invalid selector or empty profile %q", selector)
-		}
-		for operation, parameters := range overrides {
-			if len(parameters) == 0 {
-				return details, fmt.Errorf("sparkroute.request_profiles.%s.%s: parameters cannot be empty", selector, operation)
-			}
-		}
-		if err := config.ValidateRequestOverrides(overrides); err != nil {
-			return details, fmt.Errorf("sparkroute.request_profiles.%s: %w", selector, err)
-		}
+	if err := config.ValidateProfileImplementations(details.Sparkroute.RequestProfiles); err != nil {
+		return details, fmt.Errorf("sparkroute.request_profiles: %w", err)
 	}
 	for _, issue := range details.Issues {
 		if issue["severity"] == "error" {
@@ -229,6 +214,8 @@ func PrepareRecipeDraft(ctx context.Context, catalog Catalog, operator, generate
 		source.Revision = hex.EncodeToString(revision[:12])
 		// Keep stable routing references and operator policy while changing the recipe binding.
 		deployment.EndpointSource, deployment.Model = source, details.Model
+		deployment.RequestProfiles = config.CloneProfileValue(details.Sparkroute.RequestProfiles)
+		deployment.ProfileSource = recipeProfileSource(details)
 		deployment.NativeProtocols = details.NativeProtocols
 		deployment.Capabilities = slices.DeleteFunc(slices.Clone(deployment.Capabilities), func(c config.Capability) bool { return c == config.CapabilityResponses })
 		if slices.Contains(details.Capabilities, config.CapabilityResponses) {
@@ -250,6 +237,9 @@ func PrepareRecipeDraft(ctx context.Context, catalog Catalog, operator, generate
 	for _, deployment := range allDeployments {
 		source := deployment.EndpointSource
 		if source.Type == config.EndpointSourceActivatable && source.Controller == "sparkrun" && source.RecipeRevision == details.Revision && slices.Equal(source.ClusterCandidates, candidates) {
+			if config.ProfileDigest(deployment.RequestProfiles) != config.ProfileDigest(details.Sparkroute.RequestProfiles) && (deployment.ProfileSource == nil || deployment.ProfileSource.Recipe != details.Reference) {
+				return operator, "", false, fmt.Errorf("shared deployment has different request profile implementations; update its recipe source first")
+			}
 			deploymentName, reused = deployment.Name, true
 			break
 		}
@@ -283,7 +273,8 @@ func PrepareRecipeDraft(ctx context.Context, catalog Catalog, operator, generate
 		source.Revision = hex.EncodeToString(revision[:12])
 		operator.Deployments = append(operator.Deployments, config.Deployment{Name: deploymentName,
 			Title: "sparkrun:" + strings.Join(candidates, ",") + ":" + details.Model, Provider: providerName, Model: details.Model,
-			NativeProtocols: details.NativeProtocols, Capabilities: details.Capabilities, EndpointSource: source, ModelMetadata: details.ModelMetadata})
+			NativeProtocols: details.NativeProtocols, Capabilities: details.Capabilities, EndpointSource: source, ModelMetadata: details.ModelMetadata,
+			RequestProfiles: config.CloneProfileValue(details.Sparkroute.RequestProfiles), ProfileSource: recipeProfileSource(details)})
 	}
 	required := []config.Capability(nil)
 	if slices.Contains(details.Capabilities, config.Capability("single_vector_embedding")) {
@@ -298,23 +289,17 @@ func PrepareRecipeDraft(ctx context.Context, catalog Catalog, operator, generate
 	}
 	sort.Strings(selectors)
 	for _, selector := range selectors {
-		profile := base
-		profile.Name = base.Name + ":" + selector
-		profile.Aliases = make([]string, len(base.Aliases))
-		for i, alias := range base.Aliases {
-			profile.Aliases[i] = alias + ":" + selector
-		}
-		profile.RequestOverrides = details.Sparkroute.RequestProfiles[selector]
+		profile := config.VirtualModel{Name: base.Name + ":" + selector, Profile: &config.RequestProfileBinding{Parent: base.Name, Selector: selector}}
 		additions = append(additions, profile)
 	}
-	occupied := map[string]bool{}
-	for _, model := range append(slices.Clone(operator.VirtualModels), generated.VirtualModels...) {
-		occupied[model.Name] = true
-		for _, alias := range model.Aliases {
-			occupied[alias] = true
-		}
+	allModels := append(slices.Clone(operator.VirtualModels), generated.VirtualModels...)
+	allModels = append(allModels, additions...)
+	resolved, err := (config.Document{VirtualModels: allModels}).ResolveRequestProfiles()
+	if err != nil {
+		return operator, "", false, err
 	}
-	for _, model := range additions {
+	occupied := map[string]bool{}
+	for _, model := range resolved.VirtualModels {
 		for _, name := range append([]string{model.Name}, model.Aliases...) {
 			if occupied[name] {
 				return operator, "", false, fmt.Errorf("recipe model or request profile conflicts with existing model or alias %q", name)
@@ -419,4 +404,8 @@ func ValidateWorkloadSharing(document config.Document) error {
 		byRevision[source.RecipeRevision] = append(byRevision[source.RecipeRevision], deployment)
 	}
 	return nil
+}
+
+func recipeProfileSource(details RecipeDetails) *config.RequestProfileSource {
+	return &config.RequestProfileSource{Recipe: details.Reference, RecipeRevision: details.Revision, Kind: details.ProfileSourceKind, Revision: config.ProfileDigest(details.Sparkroute.RequestProfiles)}
 }

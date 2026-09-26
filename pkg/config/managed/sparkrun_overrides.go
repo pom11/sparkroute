@@ -21,6 +21,19 @@ func ApplySparkrunOverrides(operator, generated config.Document) (config.Documen
 	for _, name := range operator.SparkrunOverrides.ExcludedDeployments {
 		excluded[name] = true
 	}
+	// The historical discovery aggregate remains addressable for saved routes.
+	// Excluding that aggregate still excludes the whole discovered model after
+	// profile implementations split into job-specific targets.
+	for _, aggregate := range generated.Deployments {
+		if !excluded[aggregate.Name] || aggregate.EndpointSource.Type != config.EndpointSourceDiscovered || len(aggregate.DiscoveryJobIDs) != 0 {
+			continue
+		}
+		for _, deployment := range generated.Deployments {
+			if deployment.EndpointSource.Type == config.EndpointSourceDiscovered && deployment.Provider == aggregate.Provider && deployment.Model == aggregate.Model {
+				excluded[deployment.Name] = true
+			}
+		}
+	}
 	result := generated
 	result.Deployments = make([]config.Deployment, 0, len(generated.Deployments))
 	for _, deployment := range generated.Deployments {
@@ -53,5 +66,16 @@ func ApplySparkrunOverrides(operator, generated config.Document) (config.Documen
 		model.Pools = pools
 		result.VirtualModels = append(result.VirtualModels, model)
 	}
+	parents := map[string]bool{}
+	for _, model := range result.VirtualModels {
+		parents[model.Name] = true
+	}
+	kept := result.VirtualModels[:0]
+	for _, model := range result.VirtualModels {
+		if model.Profile == nil || parents[model.Profile.Parent] {
+			kept = append(kept, model)
+		}
+	}
+	result.VirtualModels = kept
 	return result, nil
 }

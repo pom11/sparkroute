@@ -453,7 +453,7 @@ export interface SparkrunRecipeDetails extends SparkrunRecipe {
   native_api_options?: string[];
   native_protocols: string[];
   capabilities: string[];
-  sparkroute?: { capabilities?: string[]; request_profiles?: Record<string, Record<string, Record<string, unknown>>> };
+  sparkroute?: { capabilities?: string[]; request_profiles?: Record<string, Record<string, unknown>> };
   required_plugins: string[];
   trusted: boolean;
   metadata?: {benchmarks?: Record<string, unknown>[]};
@@ -479,4 +479,53 @@ export function prepareSparkrunRecipe(token: string, document: ConfigurationDocu
 
 export function controlSparkrunWorkload(token: string, deployment: string, job_id: string, action: string) {
  return requestJSON<{state: string}>("/v1/sparkrun/workload", token, {method:"POST", body:{deployment, job_id, action}});
+}
+
+
+export type ChatTestModel = { id: string; operations: string[] };
+export type ChatTestChunk = { text?: string; reasoning?: string; usage?: Record<string, number> };
+export function fetchChatTestModels(token: string, signal?: AbortSignal) {
+  return requestJSON<{ models: ChatTestModel[] }>("/v1/chat-test/models", token, {}, signal);
+}
+
+export async function streamChatTest(token: string, body: {model: string; operation: string; messages: {role: string; content: string}[]; max_tokens: number}, onChunk: (chunk: ChatTestChunk) => void, signal: AbortSignal) {
+  const headers = new Headers({ "Content-Type": "application/json", Accept: "text/event-stream" });
+  if (token) headers.set("Authorization", `Bearer ${token}`);
+  const response = await fetch("/v1/chat-test", { method: "POST", headers, credentials: "same-origin", body: JSON.stringify(body), signal });
+  if (!response.ok) throw await responseError(response);
+  if (!response.body) throw new Error("The gateway returned an empty response.");
+  if (!response.headers.get("Content-Type")?.includes("text/event-stream")) throw new Error("Expected a streaming response from the model.");
+  const reader = response.body.getReader(), decoder = new TextDecoder();
+  let buffer = "", completed = false;
+  function consume(event: string) {
+    const data = event.split(/\r?\n/).filter(line => line.startsWith("data:")).map(line => line.slice(5).trimStart()).join("\n");
+    if (!data) return;
+    if (data === "[DONE]") { completed = true; return; }
+    const value = JSON.parse(data);
+    if (value.error || value.type === "response.failed") throw new Error(value.error?.message ?? value.response?.error?.message ?? "Model generation failed.");
+    if (value.type === "response.completed" || value.type === "response.incomplete") completed = true;
+    const delta = value.choices?.[0]?.delta;
+    const text = typeof delta?.content === "string" ? delta.content : value.type === "response.output_text.delta" ? value.delta : undefined;
+    const reasoning = delta?.reasoning_content ?? delta?.reasoning ?? (["response.reasoning_text.delta", "response.reasoning_summary_text.delta"].includes(value.type) ? value.delta : undefined);
+    onChunk({text, reasoning: typeof reasoning === "string" ? reasoning : undefined, usage: value.usage ?? value.response?.usage});
+    if (value.type === "response.incomplete") throw new Error("The response reached its output limit. Increase the limit to get the full answer.");
+    if (value.choices?.[0]?.finish_reason === "length") throw new Error("The response reached its output limit. Increase the limit to get the full answer.");
+  }
+  try {
+    for (;;) {
+      const { value, done } = await reader.read();
+      buffer += decoder.decode(value, { stream: !done });
+      let separator: RegExpExecArray | null;
+      while ((separator = /\r?\n\r?\n/.exec(buffer))) {
+        consume(buffer.slice(0, separator.index));
+        buffer = buffer.slice(separator.index + separator[0].length);
+      }
+      if (buffer.length > 1 << 20) throw new Error("The model sent an oversized stream event.");
+      if (done) { if (buffer.trim()) consume(buffer); break; }
+    }
+    if (!completed) throw new Error("The model stream ended before completion. Partial output is shown.");
+  } finally {
+    await reader.cancel().catch(() => {});
+    reader.releaseLock();
+  }
 }

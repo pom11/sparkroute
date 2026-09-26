@@ -420,9 +420,14 @@ func (s *Store) replaceSet(ctx context.Context, owner managed.Owner, document co
 		}
 		changed = true
 		if _, err := tx.ExecContext(ctx, `
-			UPDATE gateway_config_managed_sets
-			SET revision_id = ?, document_json = ?, updated_at = ?, updated_by = ?, reason = ?
-			WHERE owner = ?
+			INSERT INTO gateway_config_managed_sets (revision_id, document_json, updated_at, updated_by, reason, owner)
+            VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT(owner) DO UPDATE SET
+                revision_id = excluded.revision_id,
+                document_json = excluded.document_json,
+                updated_at = excluded.updated_at,
+                updated_by = excluded.updated_by,
+                reason = excluded.reason
 		`, fragment.version, fragment.raw, formatTime(now), options.Actor, nullString(options.Reason), setOwner); err != nil {
 			return managed.ReplaceResult{}, fmt.Errorf("replace SQLite managed set: %w", err)
 		}

@@ -47,6 +47,7 @@ export function VirtualModelEditor({
   // Hide variants only when their parent exists, so standalone/orphaned models
   // remain accessible. Keep original indices for edits and generated ownership.
   const visibleModels = models.map((model, index) => ({ model, index })).filter(({ model }) => {
+    if (objectValue(model.profile).parent) return !models.some(parent => parent.name === objectValue(model.profile).parent);
     const name = stringValue(model.name), separator = name.lastIndexOf(":");
     return !model.request_overrides || separator < 0 || !models.some((parent) => parent.name === name.slice(0, separator));
   });
@@ -59,8 +60,8 @@ export function VirtualModelEditor({
   const selectedName = stringValue(selected?.name);
   const selectedRoutingUses = routingModelUses(document.model_routing)[selectedName] ?? [];
   const profileBase = selected;
-  const profileRows = profileBase ? models.flatMap((model, index) => model.request_overrides &&
-    (model.name === profileBase.name || stringValue(model.name).startsWith(`${profileBase.name}:`))
+  const profileRows = profileBase ? models.flatMap((model, index) => (objectValue(model.profile).parent === profileBase.name || model.request_overrides &&
+    (model.name === profileBase.name || stringValue(model.name).startsWith(`${profileBase.name}:`)))
     ? [{ model, readOnly: index >= editableModels.length }] : []) : [];
   const aliases = selected ? stringArray(selected.aliases) : [];
   const selection = selected ? objectValue(selected.selection) : {};
@@ -110,10 +111,12 @@ export function VirtualModelEditor({
       const renames = new Map<string, string>([[String(selected.name), updated.name]]);
       for (let index = 0; index < nextModels.length; index++) {
         const variant = nextModels[index]!;
-        if (index === selectedIndex || !variant.request_overrides || !stringValue(variant.name).startsWith(`${selected.name}:`)) continue;
-        const name = updated.name + stringValue(variant.name).slice(String(selected.name).length);
+        const linked = objectValue(variant.profile).parent === selected.name;
+        const named = stringValue(variant.name).startsWith(`${selected.name}:`);
+        if (index === selectedIndex || (!linked && (!variant.request_overrides || !named))) continue;
+        const name = named ? updated.name + stringValue(variant.name).slice(String(selected.name).length) : stringValue(variant.name);
         renames.set(String(variant.name), name);
-        nextModels[index] = { ...variant, name };
+        nextModels[index] = { ...variant, name, ...(variant.profile ? {profile: {...objectValue(variant.profile), parent: updated.name}} : {}) };
       }
       policies = { ...policies };
       for (const [from, to] of renames) if (Object.hasOwn(policies, from)) {
@@ -150,7 +153,7 @@ export function VirtualModelEditor({
       setConfirmRemove(true);
       return;
     }
-    const nextModels = editableModels.filter((_, index) => index !== selectedIndex);
+    const nextModels = editableModels.filter((model, index) => index !== selectedIndex && objectValue(model.profile).parent !== selected.name);
     onChange({ ...document, virtual_models: nextModels });
     setSelectedIndex(Math.max(0, selectedIndex - 1));
     setConfirmRemove(false);
@@ -290,16 +293,29 @@ export function VirtualModelEditor({
 
             </fieldset>
             {profileBase && <RequestProfileEditor
-              key={selectedName}
+              key={`profiles:${selectedName}`}
               model={profileBase}
               profiles={profileRows}
+              deployments={[...objectArray(document.deployments), ...objectArray(readOnlyDocument?.deployments)]}
+              providers={[...objectArray(document.providers), ...objectArray(readOnlyDocument?.providers)]}
+              sources={objectValue(readOnlyDocument?.request_profile_sources)}
               names={[...reservedModelNames, ...models.flatMap((model) => [stringValue(model.name), ...stringArray(model.aliases)])]}
               disabled={disabled}
               onAdd={(profile) => {
                 onChange({ ...document, virtual_models: [...editableModels, profile] });
                 if (readOnlySelected) setSelectedIndex(selectedIndex + 1);
               }}
-              onChange={(name, profile) => onChange({ ...document, virtual_models: editableModels.map((model) => model.name === name ? profile : model) })}
+              onChange={(name, profile) => {
+                const linked=objectValue(profile.profile);
+                const targets=new Set(modelDeploymentNames(profileBase));
+                const nextDeployments=objectArray(document.deployments).map(deployment=>{
+                  const source=objectValue(deployment.endpoint_source);
+                  if (linked.parent && !linked.manual && targets.has(String(deployment.name)) && !deployment.profile_source && source.controller === "sparkrun" && source.recipe && source.recipe_revision)
+                    return {...deployment,profile_source:{recipe:source.recipe,recipe_revision:source.recipe_revision,kind:"recipe"}};
+                  return deployment;
+                });
+                onChange({...document,deployments:nextDeployments,virtual_models:editableModels.map(model=>model.name===name?profile:model)});
+              }}
               onDelete={(name) => {
                 const nextModels = editableModels.flatMap((model) => {
                   if (model.name !== name) return [model];
@@ -621,6 +637,7 @@ function inspectDocument(
       const error = extension.validateModel?.(value, modelIndex);
       if (error) return { error };
     }
+    if (isObject(value.profile) && typeof value.profile.parent === "string") { models.push(value); continue; }
     if (!Array.isArray(value.pools)) return { error: `virtual_models[${modelIndex}].pools must be an array.` };
     for (const [poolIndex, pool] of value.pools.entries()) {
       if (!isObject(pool) || !Array.isArray(pool.targets)) return { error: `virtual_models[${modelIndex}].pools[${poolIndex}] must contain a targets array.` };

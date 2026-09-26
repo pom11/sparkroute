@@ -68,6 +68,7 @@ type runtimeBuildOptions struct {
 	SparkrunCommand         string
 	SparkrunEndpointTTL     time.Duration
 	SparkrunReconcile       time.Duration
+	SparkrunProfileRefresh  time.Duration
 	SparkrunStopTimeout     time.Duration
 }
 
@@ -248,6 +249,7 @@ func buildRuntimeGeneration(
 	}
 	if options.AdminEnabled {
 		adminOptions := ossadmin.Options{
+			ChatTest:    gateway.WithoutSavedTraces(rawDataHandler),
 			TraceReader: options.TraceReader,
 			Targets:     dataPlane.Targets, Credentials: generation.credentials,
 			Privacy:        dataPlane.Privacy,
@@ -462,6 +464,34 @@ func reconcileManagedConfiguration(
 		logger.Error("watch managed configuration", slog.Any("err", err))
 		return
 	}
+	var profileCatalog sparkrunruntime.Catalog
+	if options.SparkrunEnabled {
+		profileCatalog, _ = sparkrunruntime.NewClient(options.SparkrunCommand)
+	}
+	lastProfileOperator := config.Version("")
+	refreshProfiles := func(force bool) {
+		if profileCatalog == nil {
+			return
+		}
+		operator, operatorErr := store.GetSet(ctx, managed.OwnerOperator)
+		if operatorErr != nil || !force && lastProfileOperator == operator.Revision {
+			return
+		}
+		refreshCtx, cancel := context.WithTimeout(ctx, 45*time.Second)
+		defer cancel()
+		if err := sparkrunruntime.RefreshRecipeProfiles(refreshCtx, store, profileCatalog); err != nil {
+			logger.Warn("refresh recipe profiles", slog.Any("err", err))
+		} else {
+			lastProfileOperator = operator.Revision
+		}
+	}
+	refreshProfiles(true)
+	profileInterval := options.SparkrunProfileRefresh
+	if profileInterval <= 0 {
+		profileInterval = time.Minute
+	}
+	profileTicker := time.NewTicker(profileInterval)
+	defer profileTicker.Stop()
 	ticker := time.NewTicker(30 * time.Second)
 	defer ticker.Stop()
 	for {
@@ -472,8 +502,11 @@ func reconcileManagedConfiguration(
 			if !ok {
 				return
 			}
+		case <-profileTicker.C:
+			refreshProfiles(true)
 		case <-ticker.C:
 		}
+		refreshProfiles(false)
 		document, revision, err := store.Load(ctx)
 		if err != nil {
 			logger.Error("load managed configuration", slog.Any("err", err))

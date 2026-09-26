@@ -72,7 +72,7 @@ registry resolution, normalized overrides, fingerprints, recipe/plugin checks,
 and trust. Paths refer to the control node. Imports are untrusted single-file
 YAML; abandoned imports expire after seven days and saved imports are retained.
 
-Bridge schema v4 adds catalog operations, persisted operation status, endpoint
+Bridge schema v5 includes catalog operations, persisted operation status, endpoint
 ownership, and asynchronous activation. The Go client starts `ensure_ready`
 with `wait: false`, polls the operation, and exposes phase/job progress through
 `GET /v1/runtime/status`. The detached Python worker continues if its requesting
@@ -175,16 +175,56 @@ sparkroute:
 The recipe picker previews these defaults. Adding the public model `coding`
 imports `coding:low` (and suffixed aliases) into the same draft, pointing to the
 same deployment. The existing Request profiles table under `coding` edits these
-parameters. Recipe/lifecycle edits preserve existing operator profiles; defaults
-are imported when creating a public model, not continuously overlaid onto edits.
+parameters through operator patches. Recipe values follow their source automatically;
+recipe/lifecycle edits preserve operator customizations.
 
 `capabilities` describes support, not a requirement for every request. Profiles
-map selectors to ingress operations and JSON parameter objects, using the same
-protected-field rules and recursive override behavior as manually configured
-profiles. Invalid selectors, protected request structure, and existing
-model/alias collisions are rejected before the draft can be saved. Runtime API
-declarations remain separate from these optional model features.
+are exposed under their parent virtual model, while implementations belong to
+each deployment. Different recipes may implement the same public selector with
+different parameters. Unsupported deployments/APIs are excluded rather than
+silently receiving an unprofiled request.
 
-The generated sparkrun set follows the recipe of a loaded binding on sync, or
-its saved launch recipe for discovery-only jobs. Those profiles are read-only.
-Recipe settings do not alter workload identity or create additional workloads.
+The shorthand maps ingress operations to overrides. Expanded implementations
+support `ingress_overrides`, `upstream_overrides`, and `supported_operations`.
+Upstream overrides apply after translation to the named runtime operation.
+For example, `supported_operations: [responses]` with
+`upstream_overrides.chat_completions.chat_template_kwargs` configures a Responses
+request translated to a Chat runtime. Declare every supported incoming operation;
+an explicit supported operation without parameters is an intentional no-op.
+
+Recipe-picker imports follow their source automatically. A read-only
+`recipe_profiles` managed set persists refreshed definitions independently of
+operator patches. Sources reconcile at startup, after operator/catalog updates,
+and every 60 seconds; configure `-sparkrun-profile-refresh-interval` to change
+that interval. Local recipe/catalog changes are followed; registry pulls remain
+under the existing registry refresh policy. Uploaded YAML is an immutable source
+until explicitly replaced. Profile-only edits do not change workload identity.
+Source errors keep last-known-good settings; workload-changing recipe edits wait
+for a deployment update. Confirmed profile deletion removes that implementation
+from eligibility without erasing operator customizations.
+
+**Use recipe profile** creates an inherited public profile. Add and Edit open a
+modal with a scrollable editor and a fixed action footer. **Cancel** or Escape
+discards the current profile edits; **Apply to draft** and **Delete profile**
+update only the configuration draft. Save the draft to activate those changes.
+Deleting default parameters keeps the base virtual model.
+The **API configurations** list shows every incoming/runtime API entry, including
+recipe values, common overrides, deployment overrides and suppressed fields.
+Select a card to edit it, or choose **Add API configuration**, select an API and
+stage, and enter its parameters. Switching entries preserves edits; Apply saves
+all entries to the draft. A new empty entry is not persisted as an override.
+Choose common or deployment-specific overrides using **Override scope**.
+API availability notices identify recipe support and native-protocol/translation
+limitations per deployment. They are advisory and do not enable APIs or replace
+request-time parameter validation. Recipe support declarations remain in the
+recipe; switching to operator-only parameters removes recipe inheritance.
+ **Reset to inherited** removes the selected patch. Suppression
+accepts one JSON pointer per line, such as `/temperature`; it removes a configured
+override so caller parameters can pass through. JSON null is a literal value.
+The deployment preview shows effective parameters and source revision/errors.
+
+Profiles inherit parent pools, weights, aliases, policies, and limits; retries
+prepare an independent request for each target. Existing flat `request_overrides`
+variants remain compatible. **Review migration** previews linking a legacy variant
+to its parent and preserves existing values as operator patches. Explicit generated
+profiles remain read-only. The plugin and gateway must both support bridge v5.

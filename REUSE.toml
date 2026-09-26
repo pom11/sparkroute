@@ -10,7 +10,7 @@ path = ["COPYRIGHT", "NOTICE", "go.mod", "go.sum", "third-party-manifest.json",
         "web/package.json", "web/package-lock.json", "web/tsconfig.json",
         "examples/*.json", "benchmarks/blackbox/requests/*.json",
         "benchmarks/blackbox/sparkroute-config.json",
-        "pkg/gateway/testdata/**/*.json", "pkg/gateway/testdata/**/*.sse",
+        "pkg/config/testdata/request_profiles.json", "pkg/gateway/testdata/**/*.json", "pkg/gateway/testdata/**/*.sse",
         "pkg/*/sqlite/migrations/*.sql", "pkg/*/postgres/migrations/**/*.sql",
         "pkg/*/postgres/migrations/*.sql"]
 precedence = "closest"

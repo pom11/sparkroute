@@ -75,6 +75,12 @@ Sparkrun-owned configuration is isolated from operator-owned configuration in
 the managed store. SparkRoute periodically reconciles activatable targets via
 the `sparkrun gateway-bridge` JSON contract.
 
+## Quick model tests
+
+The admin console's **Chat test** page streams ephemeral text conversations with
+virtual models, request profiles, and aliases through normal gateway routing.
+See [Chat tests](docs/CHAT_TEST.md) for permissions, retention, and scope.
+
 ## Admin authentication
 
 Local read-only admin access is the safe default. Managed mode uses the SQLite
@@ -201,11 +207,13 @@ fields and precedes routing pools. The table shows each named selector (such as
 opens a new draft; the pencil expands parameters directly beneath its row.
 The request API is chosen within the editor. Apply changes to the draft, then
 Validate and Save. Only parent models appear in the virtual-model list; variants
-are managed through that parent’s table. Existing profiles remain explicit virtual
-models sharing the original deployment.
+are managed through that parent’s table. New profiles explicitly inherit the parent model's routing and policies. Recipe-backed
+profiles select deployment-specific implementations and follow recipe updates while
+preserving operator overrides. Legacy flat profiles retain their behavior until
+reviewed and migrated in the editor. See [request profiles](docs/SPARKRUN_ON_DEMAND.md#recipe-provided-capabilities-and-request-profiles).
 
 See the [named-cluster bridge contract](docs/SPARKRUN_CLUSTER_METADATA_CONTRACT.md)
-for schema v4 requirements and treatment of older job metadata.
+for named-cluster metadata requirements and treatment of older job metadata.
 
 ## On-demand sparkrun models
 
@@ -250,7 +258,7 @@ The catalog uses the local sparkrun bridge even before the first deployment
 exists. Install the paired plugin and a sparkrun build with the public catalog
 API, then enable `gateway.sparkroute`. Without that integration, ordinary cloud
 provider configuration continues to work. Gateway and plugin require bridge
-schema v4 together. See [the on-demand contract](docs/SPARKRUN_ON_DEMAND.md).
+schema v5 together. See [the on-demand contract](docs/SPARKRUN_ON_DEMAND.md).
 
 ## Native provider configuration
 

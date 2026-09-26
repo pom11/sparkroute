@@ -52,6 +52,12 @@ func (h *handler) sparkrunCatalog(writer http.ResponseWriter, request *http.Requ
 		writeCatalogError(writer, err)
 		return
 	}
+	if h.options.ManagedConfig != nil && (input.Operation == "catalog_refresh" || input.Operation == "catalog_import") {
+		if err := sparkrun.RefreshRecipeProfiles(ctx, h.options.ManagedConfig, h.options.SparkrunCatalog); err != nil {
+			writeCatalogError(writer, err)
+			return
+		}
+	}
 	writer.Header().Set("Cache-Control", "no-store")
 	writeJSON(writer, http.StatusOK, result)
 }

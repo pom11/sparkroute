@@ -9,6 +9,9 @@ import "github.com/sparksq/sparkroute/pkg/modelrouter"
 // DeploymentMetadata projects deployment attributes onto every virtual model and
 // alias using it. All fallback pools participate; weights do not change limits.
 func (d Document) DeploymentMetadata() map[string]modelrouter.DiscoveredModelMetadata {
+	if resolved, err := d.ResolveRequestProfiles(); err == nil {
+		d = resolved
+	}
 	deployments := make(map[string]*modelrouter.DiscoveredModelMetadata, len(d.Deployments))
 	for _, deployment := range d.Deployments {
 		deployments[deployment.Name] = deployment.ModelMetadata

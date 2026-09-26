@@ -15,6 +15,11 @@ import (
 // TargetsFromDocument compiles published dynamic endpoint configuration into
 // lifecycle targets. Static deployments are intentionally omitted.
 func TargetsFromDocument(document config.Document) ([]Target, error) {
+	var resolveErr error
+	document, resolveErr = document.ResolveRequestProfiles()
+	if resolveErr != nil {
+		return nil, resolveErr
+	}
 	if err := document.Validate(); err != nil {
 		return nil, fmt.Errorf("validate lifecycle configuration: %w", err)
 	}
@@ -37,7 +42,8 @@ func TargetsFromDocument(document config.Document) ([]Target, error) {
 			continue
 		}
 		target := Target{
-			Deployment: deployment.Name, UpstreamModel: deployment.Model,
+			DiscoveryJobIDs: slices.Clone(deployment.DiscoveryJobIDs),
+			Deployment:      deployment.Name, UpstreamModel: deployment.Model,
 			LogicalModels: append([]string(nil), modelsByDeployment[deployment.Name]...),
 			Controller:    source.Controller, Protocol: providerProtocol(document, deployment.Provider),
 		}

@@ -14,24 +14,28 @@ import (
 	"strconv"
 	"testing"
 	"time"
+
+	"github.com/sparksq/sparkroute/pkg/config"
 )
 
 const acceptanceBridgeStateEnvironment = "SPARKROUTE_ACCEPTANCE_BRIDGE_STATE"
 
 type acceptanceBridgeState struct {
-	Host                    string `json:"host"`
-	Port                    int    `json:"port"`
-	WarmVisible             bool   `json:"warm_visible"`
-	ColdActive              bool   `json:"cold_active"`
-	EnsureDelayMilliseconds int    `json:"ensure_delay_ms"`
-	BadRecipeRevision       bool   `json:"bad_recipe_revision"`
-	ProcessCalls            int    `json:"process_calls"`
-	CapabilitiesCalls       int    `json:"capabilities_calls"`
-	DiscoverCalls           int    `json:"discover_calls"`
-	EnsureCalls             int    `json:"ensure_calls"`
-	StopCalls               int    `json:"stop_calls"`
-	LastRecipe              string `json:"last_recipe,omitempty"`
-	LastRecipeRevision      string `json:"last_recipe_revision,omitempty"`
+	LaunchCalls             int                                            `json:"launch_calls"`
+	Profiles                map[string]config.RequestProfileImplementation `json:"profiles,omitempty"`
+	Host                    string                                         `json:"host"`
+	Port                    int                                            `json:"port"`
+	WarmVisible             bool                                           `json:"warm_visible"`
+	ColdActive              bool                                           `json:"cold_active"`
+	EnsureDelayMilliseconds int                                            `json:"ensure_delay_ms"`
+	BadRecipeRevision       bool                                           `json:"bad_recipe_revision"`
+	ProcessCalls            int                                            `json:"process_calls"`
+	CapabilitiesCalls       int                                            `json:"capabilities_calls"`
+	DiscoverCalls           int                                            `json:"discover_calls"`
+	EnsureCalls             int                                            `json:"ensure_calls"`
+	StopCalls               int                                            `json:"stop_calls"`
+	LastRecipe              string                                         `json:"last_recipe,omitempty"`
+	LastRecipeRevision      string                                         `json:"last_recipe_revision,omitempty"`
 }
 
 type acceptanceBridgeRequest struct {
@@ -85,7 +89,7 @@ func runAcceptanceBridge() int {
 	state, err := updateAcceptanceBridgeState(statePath, func(state *acceptanceBridgeState) error {
 		state.ProcessCalls++
 		switch request.Operation {
-		case "workloads":
+		case "workloads", "catalog_resolve":
 		case "capabilities":
 			state.CapabilitiesCalls++
 		case "discover":
@@ -114,6 +118,8 @@ func runAcceptanceBridge() int {
 		OK:            true,
 	}
 	switch request.Operation {
+	case "catalog_resolve":
+		response.Result = map[string]any{"reference": "cold-recipe", "recipe_revision": acceptanceColdRecipeRevision(state), "model": "cold-upstream", "runtime": "acceptance-runtime", "profile_source_kind": "recipe", "trusted": true, "sparkroute": map[string]any{"request_profiles": state.Profiles}}
 	case "workloads":
 		response.Result = map[string]any{"plugins": []any{}, "workloads": []any{}}
 	case "capabilities":
@@ -161,6 +167,9 @@ func runAcceptanceBridge() int {
 			time.Sleep(time.Duration(state.EnsureDelayMilliseconds) * time.Millisecond)
 		}
 		state, err = updateAcceptanceBridgeState(statePath, func(current *acceptanceBridgeState) error {
+			if !current.ColdActive {
+				current.LaunchCalls++
+			}
 			current.ColdActive = true
 			return nil
 		})

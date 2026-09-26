@@ -15,6 +15,7 @@ func IsPath(path string) bool {
 		"/admin",
 		"/traces",
 		"/v1/ui",
+		"/v1/chat-test",
 		"/v1/status",
 		"/v1/mm-projection",
 		"/v1/config",

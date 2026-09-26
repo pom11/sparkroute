@@ -20,7 +20,7 @@ import (
 )
 
 const (
-	ProtocolVersion        = 4
+	ProtocolVersion        = 5
 	MaxBridgeResponseBytes = 1 << 20
 	MaxBridgeStderrBytes   = 64 << 10
 )

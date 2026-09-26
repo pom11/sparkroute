@@ -932,7 +932,7 @@ func matchesTarget(target lifecycle.Target, endpoint Endpoint) bool {
 	if target.Source == lifecycle.EndpointActivatable {
 		return endpoint.RecipeRevision == target.Binding.RecipeRevision && (len(target.Binding.ClusterCandidates) == 0 || slices.Contains(target.Binding.ClusterCandidates, endpoint.ClusterName))
 	}
-	return target.Source == lifecycle.EndpointDiscovered
+	return target.Source == lifecycle.EndpointDiscovered && (len(target.DiscoveryJobIDs) == 0 || slices.Contains(target.DiscoveryJobIDs, endpoint.JobID))
 }
 
 func endpointID(target string, endpoint Endpoint) string {

@@ -35,6 +35,7 @@ type WatchSource interface {
 // Document is the first public configuration schema. It intentionally covers
 // only the fields exercised by the foundation data plane.
 type Document struct {
+	RequestProfileSources map[string]RequestProfileSource `json:"request_profile_sources,omitempty"`
 	// SparkrunOverrides belongs to the operator fragment. Managed merge applies
 	// it before validation, keeping unwanted generated entries out across syncs.
 	SparkrunOverrides  *SparkrunOverrides               `json:"sparkrun_overrides,omitempty"`
@@ -80,8 +81,11 @@ const (
 )
 
 type Deployment struct {
-	ModelMetadata *modelrouter.DiscoveredModelMetadata `json:"model_metadata,omitempty"`
-	Name          string                               `json:"name"`
+	RequestProfiles map[string]RequestProfileImplementation `json:"request_profiles,omitempty"`
+	ProfileSource   *RequestProfileSource                   `json:"profile_source,omitempty"`
+	DiscoveryJobIDs []string                                `json:"discovery_job_ids,omitempty"`
+	ModelMetadata   *modelrouter.DiscoveredModelMetadata    `json:"model_metadata,omitempty"`
+	Name            string                                  `json:"name"`
 	// Title is presentation only; Name remains the stable routing and lifecycle ID.
 	Title            string                     `json:"title,omitempty"`
 	Provider         string                     `json:"provider"`
@@ -460,6 +464,7 @@ func (d Document) CredentialReferences() []credentials.Ref {
 }
 
 type VirtualModel struct {
+	Profile *RequestProfileBinding `json:"profile,omitempty"`
 	// RequestOverrides applies operator-owned parameters by ingress operation before validation and translation.
 	RequestOverrides     map[string]map[string]json.RawMessage `json:"request_overrides,omitempty"`
 	Name                 string                                `json:"name"`
@@ -818,6 +823,11 @@ type WeightedTarget struct {
 
 // CanonicalModel resolves a canonical name or alias.
 func (d Document) CanonicalModel(requested string) (VirtualModel, bool) {
+	var err error
+	d, err = d.ResolveRequestProfiles()
+	if err != nil {
+		return VirtualModel{}, false
+	}
 	for _, model := range d.VirtualModels {
 		if model.Name == requested {
 			return model, true

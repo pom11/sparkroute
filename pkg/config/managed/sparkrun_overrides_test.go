@@ -87,3 +87,22 @@ func TestExclusionsAreOperatorOwnedAndNeverRemoveOperatorDeployments(t *testing.
 		}
 	}
 }
+
+func TestExcludingLegacyDiscoveryAggregateAlsoExcludesJobProfiles(t *testing.T) {
+	generated := exclusionFixture()
+	generated.Deployments[0].EndpointSource.Type = config.EndpointSourceDiscovered
+	job := generated.Deployments[0]
+	job.Name = "job-specific"
+	job.DiscoveryJobIDs = []string{"job-a"}
+	generated.Deployments = append(generated.Deployments, job)
+	generated.VirtualModels[0].Pools[0].Targets[0].Deployment = job.Name
+	generated.VirtualModels[1] = config.VirtualModel{Name: "stopped:low", Profile: &config.RequestProfileBinding{Parent: "stopped", Selector: "low"}}
+	operator := config.Document{SparkrunOverrides: &config.SparkrunOverrides{ExcludedDeployments: []string{"stopped"}}}
+	merged, err := Merge(map[Owner]config.Document{OwnerOperator: operator, OwnerSparkrun: generated})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(merged.Deployments) != 1 || merged.Deployments[0].Name != "kept" || len(merged.VirtualModels) != 1 || merged.VirtualModels[0].Name != "shared" {
+		t.Fatalf("aggregate exclusion lost: %#v", merged)
+	}
+}

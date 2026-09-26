@@ -460,3 +460,15 @@ func TestClusterNameIsAdvisoryAndDoesNotChangeEndpointIdentity(t *testing.T) {
 		t.Fatal("invalid display metadata affected an otherwise valid endpoint")
 	}
 }
+
+func TestDiscoveredProfileTargetMatchesOnlyItsSavedJob(t *testing.T) {
+	target := lifecycle.Target{Source: lifecycle.EndpointDiscovered, UpstreamModel: "coding", Protocol: "openai", DiscoveryJobIDs: []string{"job-a"}}
+	endpoint := Endpoint{State: "ready", Protocol: "openai", ServedModels: []string{"coding"}, JobID: "job-b"}
+	if matchesTarget(target, endpoint) {
+		t.Fatal("profile target matched another runtime's job")
+	}
+	endpoint.JobID = "job-a"
+	if !matchesTarget(target, endpoint) {
+		t.Fatal("profile target lost its own job")
+	}
+}

@@ -2,6 +2,7 @@
 // SPDX-FileCopyrightText: 2026 Fox Engine Ltd.
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import { ChatTestWorkspace } from "./ChatTestWorkspace";
 import { piiVirtualModelExtension } from "./PIIEditor";
 import {
   type ComponentType,
@@ -45,7 +46,7 @@ type ConnectionState =
       status?: GatewayStatus;
     };
 
-type BuiltInConsolePage = "overview" | "configuration" | "credentials" | "traffic" | "traces";
+type BuiltInConsolePage = "overview" | "configuration" | "credentials" | "traffic" | "traces" | "chat";
 type ConsolePage = BuiltInConsolePage | string;
 
 export function AdminApp({
@@ -290,6 +291,7 @@ function ConsoleLayout({
   const navigate = (next: ConsolePage) => {
     const target = ({
       overview: "/admin/",
+      chat: "/admin/chat",
       configuration: "/admin/configuration",
       credentials: "/admin/credentials",
       traffic: "/admin/traffic",
@@ -304,6 +306,7 @@ function ConsoleLayout({
   const heading = (section && (bootstrap.features.config_managed_sets || section === "advanced" || section === "privacy" || section === "guardrails")
     ? configurationSections.find((entry) => entry.id === section)?.label : undefined) ?? ({
     overview: "Gateway overview",
+    chat: "Chat test",
     configuration: "Configuration",
     credentials: "Client credentials",
     traffic: "Traffic history",
@@ -362,6 +365,7 @@ function ConsoleLayout({
               </ul>
             )}
           </div> : null}
+          {bootstrap.features.chat_test ? <a href="/admin/chat" className={page === "chat" ? "nav-item active" : "nav-item"} aria-current={page === "chat" ? "page" : undefined} onClick={event => { event.preventDefault(); navigate("chat"); }}><span className="nav-glyph">›</span>Chat test</a> : null}
           {credentialsAvailable ? (
             <a
               aria-current={page === "credentials" ? "page" : undefined}
@@ -469,6 +473,8 @@ function ConsoleLayout({
               />
             )
           ) : <ModuleUnavailable />
+        ) : page === "chat" ? (
+          bootstrap.features.chat_test ? <ChatTestWorkspace token={token} /> : <ModuleUnavailable />
         ) : page === "credentials" ? (
           credentialsAvailable ? <CredentialsWorkspace bootstrap={bootstrap} token={token} /> : <ModuleUnavailable />
         ) : page === "traffic" ? (
@@ -499,6 +505,7 @@ function pageFromPath(
   if (pathname === "/admin/configuration") return "configuration";
   const configurationPage = pathname.replace(/^\/admin\//, "");
   if (configurationSection(configurationPage)) return configurationPage;
+  if (pathname === "/admin/chat") return "chat";
   if (pathname === "/admin/credentials") return "credentials";
   if (pathname === "/admin/traffic") return "traffic";
   if (pathname === "/admin/runtime") return "overview";

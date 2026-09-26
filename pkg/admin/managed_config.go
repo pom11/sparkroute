@@ -276,6 +276,10 @@ func authorizeManagedSetRead(writer http.ResponseWriter, request *http.Request, 
 }
 
 func authorizeManagedSetWrite(writer http.ResponseWriter, request *http.Request, owner managed.Owner) bool {
+	if owner == managed.OwnerRecipeProfiles {
+		writeError(writer, http.StatusForbidden, "gateway_managed", "recipe profile sources are refreshed by the gateway")
+		return false
+	}
 	if owner == managed.OwnerSparkrun {
 		return requireRole(writer, request, RoleConfigReconcileSparkrun)
 	}

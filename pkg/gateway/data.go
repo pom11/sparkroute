@@ -163,9 +163,14 @@ func NewDataPlane(document config.Document, options DataOptions) (*DataPlane, er
 		owner = "sparkroute"
 	}
 
-	models := make([]modelObject, 0, len(document.VirtualModels))
+	// Publish the same inherited names and visibility used by routing.
+	catalogDocument, err := document.ResolveRequestProfiles()
+	if err != nil {
+		return nil, err
+	}
+	models := make([]modelObject, 0, len(catalogDocument.VirtualModels))
 	publishedModels := make(map[string]struct{}, len(document.VirtualModels))
-	for _, model := range document.VirtualModels {
+	for _, model := range catalogDocument.VirtualModels {
 		if model.Visibility.Effective() != config.ModelVisibilityPublic {
 			continue
 		}

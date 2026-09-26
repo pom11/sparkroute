@@ -199,3 +199,34 @@ func testDocument() config.Document {
 		}},
 	}
 }
+
+func TestDataHandlerListsInheritedProfileAliasesAndVisibility(t *testing.T) {
+	t.Parallel()
+	for _, visibility := range []config.ModelVisibility{config.ModelVisibilityPublic, config.ModelVisibilityHidden} {
+		document := testDocument()
+		document.VirtualModels[0].Visibility = visibility
+		document.VirtualModels = append(document.VirtualModels, config.VirtualModel{
+			Name: "local-default:low", Profile: &config.RequestProfileBinding{Parent: "local-default", Selector: "low", Manual: true},
+		})
+		handler, err := NewDataHandler(document, DataOptions{Models: ModelListOptions{IncludeAliases: true}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		response := httptest.NewRecorder()
+		handler.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/v1/models", nil))
+		var body modelList
+		if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+			t.Fatal(err)
+		}
+		ids := []string{}
+		for _, model := range body.Data {
+			ids = append(ids, model.ID)
+		}
+		if visibility == config.ModelVisibilityPublic && strings.Join(ids, ",") != "default,default:low,local-default,local-default:low" {
+			t.Fatalf("inherited profile aliases missing: %v", ids)
+		}
+		if visibility == config.ModelVisibilityHidden && len(ids) != 0 {
+			t.Fatalf("hidden profiles published: %v", ids)
+		}
+	}
+}
