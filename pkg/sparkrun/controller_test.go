@@ -472,3 +472,30 @@ func TestDiscoveredProfileTargetMatchesOnlyItsSavedJob(t *testing.T) {
 		t.Fatal("profile target lost its own job")
 	}
 }
+
+func TestDaemonObservationExpiryDoesNotRefreshOnFetch(t *testing.T) {
+	target := activationTarget()
+	now := time.Unix(10000, 0)
+	controller, err := New(Options{Bridge: &fakeBridge{}, Registry: endpointregistry.NewMemory(), Targets: []lifecycle.Target{target}, EndpointTTL: time.Minute, Now: func() time.Time { return now }})
+	if err != nil {
+		t.Fatal(err)
+	}
+	observed := now.Add(-30 * time.Second)
+	value := Endpoint{State: "ready", ClusterID: "work", JobID: "work", Host: "127.0.0.1", Port: 8000, Protocol: "openai", ServedModels: []string{target.UpstreamModel}, ObservedAt: float64(observed.Unix()), RecipeRevision: target.Binding.RecipeRevision}
+	first, _, err := controller.endpointFromBridge(target, value, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	now = now.Add(10 * time.Second)
+	second, _, err := controller.endpointFromBridge(target, value, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !first.ExpiresAt.Equal(second.ExpiresAt) || !first.ExpiresAt.Equal(observed.Add(time.Minute)) {
+		t.Fatal("fetch extended observation expiry")
+	}
+	now = now.Add(30 * time.Second)
+	if _, _, err = controller.endpointFromBridge(target, value, 1); err == nil {
+		t.Fatal("expired observation admitted")
+	}
+}

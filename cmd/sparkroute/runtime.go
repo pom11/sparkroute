@@ -39,37 +39,38 @@ import (
 )
 
 type runtimeBuildOptions struct {
-	Privacy                 *privacyRuntime
-	TraceStores             *traceStores
-	TraceReader             savedtrace.Reader
-	SparkrunWorkloads       *sparkrunruntime.Workloads
-	Context                 context.Context
-	Logger                  *slog.Logger
-	CredentialOptions       credentialbuiltin.Options
-	Ledger                  ledger.Recorder
-	ResponsesState          responsesstate.Store
-	SavedTraces             *savedtrace.AsyncRecorder
-	MaxSavedTraceBytes      int64
-	PromptCache             *promptcache.Directory
-	PromptFingerprinter     *promptcache.Fingerprinter
-	Telemetry               *otlpexport.Runtime
-	IncludeAliases          bool
-	ModelRouter             modelrouter.Router
-	MMProjection            *mmprojection.Client
-	MMProjectionCredentials credentials.StatusSource
-	CallerAuthentication    identity.Authenticator
-	AdminEnabled            bool
-	AdminAuthentication     identity.Authenticator
-	AllowInsecureAdmin      bool
-	ClientCredentials       *clientcredentials.Manager
-	ProviderAuth            *providerauth.Service
-	ManagedConfig           managed.Store
-	SparkrunEnabled         bool
-	SparkrunCommand         string
-	SparkrunEndpointTTL     time.Duration
-	SparkrunReconcile       time.Duration
-	SparkrunProfileRefresh  time.Duration
-	SparkrunStopTimeout     time.Duration
+	Privacy                  *privacyRuntime
+	TraceStores              *traceStores
+	TraceReader              savedtrace.Reader
+	SparkrunWorkloads        *sparkrunruntime.Workloads
+	Context                  context.Context
+	Logger                   *slog.Logger
+	CredentialOptions        credentialbuiltin.Options
+	Ledger                   ledger.Recorder
+	ResponsesState           responsesstate.Store
+	SavedTraces              *savedtrace.AsyncRecorder
+	MaxSavedTraceBytes       int64
+	PromptCache              *promptcache.Directory
+	PromptFingerprinter      *promptcache.Fingerprinter
+	Telemetry                *otlpexport.Runtime
+	IncludeAliases           bool
+	ModelRouter              modelrouter.Router
+	MMProjection             *mmprojection.Client
+	MMProjectionCredentials  credentials.StatusSource
+	CallerAuthentication     identity.Authenticator
+	AdminEnabled             bool
+	AdminAuthentication      identity.Authenticator
+	AllowInsecureAdmin       bool
+	ClientCredentials        *clientcredentials.Manager
+	ProviderAuth             *providerauth.Service
+	ManagedConfig            managed.Store
+	SparkrunEnabled          bool
+	SparkrunDaemonConnection string
+	SparkrunCommand          string
+	SparkrunEndpointTTL      time.Duration
+	SparkrunReconcile        time.Duration
+	SparkrunProfileRefresh   time.Duration
+	SparkrunStopTimeout      time.Duration
 }
 
 type runtimeGeneration struct {
@@ -129,7 +130,7 @@ func buildRuntimeGeneration(
 	var endpointRegistry *endpointregistry.Memory
 	var admissionCoordinator *lifecycle.AdmissionCoordinator
 	if len(lifecycleTargets) > 0 {
-		bridge, err := sparkrunruntime.NewClient(options.SparkrunCommand)
+		bridge, err := newSparkrunClient(options)
 		if err != nil {
 			return nil, err
 		}
@@ -276,7 +277,7 @@ func buildRuntimeGeneration(
 			adminOptions.Endpoints = endpointRegistry
 		}
 		if options.SparkrunEnabled {
-			catalog, err := sparkrunruntime.NewClient(options.SparkrunCommand)
+			catalog, err := newSparkrunClient(options)
 			if err != nil {
 				generation.close()
 				return nil, err
@@ -466,7 +467,11 @@ func reconcileManagedConfiguration(
 	}
 	var profileCatalog sparkrunruntime.Catalog
 	if options.SparkrunEnabled {
-		profileCatalog, _ = sparkrunruntime.NewClient(options.SparkrunCommand)
+		var err error
+		profileCatalog, err = newSparkrunClient(options)
+		if err != nil {
+			logger.Error("configure Sparkrun recipe profile client", slog.Any("err", err))
+		}
 	}
 	lastProfileOperator := config.Version("")
 	refreshProfiles := func(force bool) {
@@ -528,4 +533,13 @@ func reconcileManagedConfiguration(
 		slot.replace(next)
 		logger.Info("managed configuration applied", slog.String("config_revision", string(revision)))
 	}
+}
+
+// All integration consumers share transport selection, including admin-only
+// generations and profile refresh without any activatable deployment.
+func newSparkrunClient(options runtimeBuildOptions) (*sparkrunruntime.Client, error) {
+	if options.SparkrunDaemonConnection != "" {
+		return sparkrunruntime.NewDaemonClient(options.SparkrunDaemonConnection)
+	}
+	return sparkrunruntime.NewClient(options.SparkrunCommand)
 }

@@ -1,4 +1,8 @@
 <!--
+
+The optional [daemon transport](SPARKRUN_DAEMON.md) uses direct HTTP/SSE for
+lifecycle, catalog and profile requests. Bridge details below apply to the
+explicit stdio transport.
 SPDX-FileCopyrightText: 2026 Scitrera LLC
 SPDX-FileCopyrightText: 2026 Fox Engine Ltd.
 SPDX-License-Identifier: AGPL-3.0-only

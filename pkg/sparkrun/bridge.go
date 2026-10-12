@@ -33,6 +33,7 @@ type Binding struct {
 }
 
 type Endpoint struct {
+	ObservedAt       float64                  `json:"observed_at,omitempty"`
 	PluginsInUse     []string                 `json:"plugins_in_use,omitempty"`
 	LifecycleActions []string                 `json:"lifecycle_actions,omitempty"`
 	Owned            bool                     `json:"owned"`
@@ -62,6 +63,7 @@ type ModelMetadata struct {
 }
 
 type Capabilities struct {
+	Transport       string   `json:"transport,omitempty"`
 	ProtocolVersion int      `json:"protocol_version"`
 	Operations      []string `json:"operations"`
 	SparkrunVersion string   `json:"sparkrun_version"`
@@ -103,6 +105,7 @@ func (e *BridgeError) Error() string {
 }
 
 type Client struct {
+	daemon     *daemonTransport
 	OnProgress func(Binding, Operation)
 	command    string
 	nextID     atomic.Uint64
@@ -128,6 +131,9 @@ func (c *Client) EnsureReady(
 	binding Binding,
 	timeout time.Duration,
 ) (EnsureResult, error) {
+	if c.daemon != nil {
+		return c.ensureDaemon(ctx, binding, timeout)
+	}
 	if timeout <= 0 {
 		timeout = 30 * time.Minute
 	}
@@ -213,6 +219,9 @@ type bridgeResponse struct {
 }
 
 func (c *Client) invoke(ctx context.Context, request bridgeRequest, result any) error {
+	if c.daemon != nil {
+		return c.invokeDaemon(ctx, request, result)
+	}
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -295,3 +304,6 @@ func (b *boundedBuffer) Write(value []byte) (int, error) {
 }
 
 var _ Bridge = (*Client)(nil)
+
+// SetProgressObserver is shared by subprocess and HTTP/SSE clients.
+func (c *Client) SetProgressObserver(observer func(Binding, Operation)) { c.OnProgress = observer }

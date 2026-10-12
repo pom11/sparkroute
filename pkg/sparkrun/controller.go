@@ -147,8 +147,10 @@ func New(options Options) (*Controller, error) {
 		tracked:    make(map[string]string),
 		background: background, cancelTasks: cancelTasks,
 	}
-	if client, ok := options.Bridge.(*Client); ok {
-		client.OnProgress = func(binding Binding, operation Operation) {
+	if client, ok := options.Bridge.(interface {
+		SetProgressObserver(func(Binding, Operation))
+	}); ok {
+		client.SetProgressObserver(func(binding Binding, operation Operation) {
 			controller.mu.Lock()
 			defer controller.mu.Unlock()
 			for _, state := range controller.states {
@@ -157,7 +159,7 @@ func New(options Options) (*Controller, error) {
 					state.jobID = operation.ClusterID
 				}
 			}
-		}
+		})
 	}
 	return controller, nil
 }
@@ -167,7 +169,11 @@ func (c *Controller) CheckCapabilities(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	if capabilities.ProtocolVersion != ProtocolVersion {
+	expectedProtocol := ProtocolVersion
+	if capabilities.Transport == "daemon" {
+		expectedProtocol = DaemonProtocolVersion
+	}
+	if capabilities.ProtocolVersion != expectedProtocol {
 		return fmt.Errorf("sparkrun bridge protocol version %d is unsupported", capabilities.ProtocolVersion)
 	}
 	required := []string{"discover", "ensure_ready", "stop"}
@@ -687,6 +693,13 @@ func (c *Controller) endpointFromBridge(
 	// make an otherwise valid inference endpoint unavailable.
 	metadata := bridgeModelMetadata(discovered, served, target.UpstreamModel)
 	now := c.now().UTC()
+	observed := now
+	if discovered.ObservedAt != 0 {
+		observed = time.UnixMilli(int64(discovered.ObservedAt * 1000)).UTC()
+		if observed.After(now.Add(5*time.Second)) || !observed.Add(c.endpointTTL).After(now) {
+			return endpointregistry.Endpoint{}, nil, fmt.Errorf("Sparkrun observation is expired or in the future")
+		}
+	}
 	endpoint := endpointregistry.Endpoint{
 		ID: endpointID(target.Deployment, discovered), Target: target.Deployment,
 		BaseURL:  "http://" + net.JoinHostPort(discovered.Host, strconv.Itoa(discovered.Port)) + "/v1",
@@ -694,7 +707,7 @@ func (c *Controller) endpointFromBridge(
 		ClusterID: discovered.ClusterID, JobID: discovered.JobID,
 		RecipeRevision: discovered.RecipeRevision, FencingToken: fencingToken,
 		State: endpointregistry.StateReady, RegisteredAt: now, HeartbeatAt: now,
-		ExpiresAt: now.Add(c.endpointTTL),
+		ExpiresAt: observed.Add(c.endpointTTL),
 	}
 	// Advisory display metadata never changes endpoint identity or fencing.
 	if name := discovered.ClusterName; len(name) <= 1024 && strings.TrimSpace(name) != "" && strings.IndexFunc(name, unicode.IsControl) < 0 {

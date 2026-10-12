@@ -289,6 +289,7 @@ func run(ctx context.Context, args []string, stdout io.Writer, logger *slog.Logg
 		"capture-session durability checkpoint interval",
 	)
 	sparkrunEnabled := flags.Bool("sparkrun", false, "enable sparkrun integration, recipe catalog, and on-demand lifecycle")
+	sparkrunDaemonConnection := flags.String("sparkrun-daemon-connection", env("SPARKROUTE_SPARKRUN_DAEMON_CONNECTION", ""), "Private Sparkrun daemon connection file; selects direct HTTP/SSE instead of the bridge")
 	sparkrunCommand := flags.String(
 		"sparkrun-command",
 		env("SPARKROUTE_SPARKRUN_COMMAND", "sparkrun"),
@@ -757,8 +758,8 @@ func run(ctx context.Context, args []string, stdout io.Writer, logger *slog.Logg
 		AdminEnabled:            true, AdminAuthentication: adminAuthentication,
 		AllowInsecureAdmin: insecureAdmin,
 		ClientCredentials:  clientCredentialManager, ManagedConfig: managedConfigStore,
-		ProviderAuth:    providerAuth,
-		SparkrunCommand: *sparkrunCommand, SparkrunEndpointTTL: *sparkrunEndpointTTL,
+		ProviderAuth:             providerAuth,
+		SparkrunDaemonConnection: *sparkrunDaemonConnection, SparkrunCommand: *sparkrunCommand, SparkrunEndpointTTL: *sparkrunEndpointTTL,
 		SparkrunReconcile:      *sparkrunReconcileInterval,
 		SparkrunProfileRefresh: *sparkrunProfileRefresh,
 		SparkrunStopTimeout:    *sparkrunStopTimeout,
