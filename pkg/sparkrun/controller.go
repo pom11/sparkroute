@@ -156,7 +156,7 @@ func New(options Options) (*Controller, error) {
 			for _, state := range controller.states {
 				if state.binding.RecipeRevision == binding.RecipeRevision && slices.Equal(state.binding.ClusterCandidates, binding.ClusterCandidates) {
 					state.phase = lifecycle.SanitizeReason(strings.ReplaceAll(operation.Phase, " ", "_"))
-					state.jobID = operation.ClusterID
+					state.jobID = operation.WorkloadID
 				}
 			}
 		})
@@ -263,7 +263,7 @@ func (c *Controller) Reconcile(ctx context.Context) error {
 			continue
 		}
 		for _, discovered := range result.Endpoints {
-			if !matchesTarget(target, discovered) || !c.workloads.available(discovered.ClusterID) {
+			if !matchesTarget(target, discovered) || !c.workloads.available(discovered.WorkloadID) {
 				continue
 			}
 			if target.Source == lifecycle.EndpointActivatable {
@@ -673,7 +673,7 @@ func (c *Controller) endpointFromBridge(
 	if discovered.Port < 1 || discovered.Port > 65535 {
 		return endpointregistry.Endpoint{}, nil, fmt.Errorf("sparkrun endpoint port is invalid")
 	}
-	if discovered.ClusterID == "" || len(discovered.ClusterID) > 1024 ||
+	if discovered.WorkloadID == "" || len(discovered.WorkloadID) > 1024 ||
 		discovered.JobID == "" || len(discovered.JobID) > 1024 {
 		return endpointregistry.Endpoint{}, nil, fmt.Errorf("sparkrun endpoint identity is invalid")
 	}
@@ -704,7 +704,7 @@ func (c *Controller) endpointFromBridge(
 		ID: endpointID(target.Deployment, discovered), Target: target.Deployment,
 		BaseURL:  "http://" + net.JoinHostPort(discovered.Host, strconv.Itoa(discovered.Port)) + "/v1",
 		Protocol: "openai", ServedModels: served, Controller: ControllerName,
-		ClusterID: discovered.ClusterID, JobID: discovered.JobID,
+		ClusterID: discovered.WorkloadID, JobID: discovered.JobID,
 		RecipeRevision: discovered.RecipeRevision, FencingToken: fencingToken,
 		State: endpointregistry.StateReady, RegisteredAt: now, HeartbeatAt: now,
 		ExpiresAt: observed.Add(c.endpointTTL),
@@ -950,7 +950,7 @@ func matchesTarget(target lifecycle.Target, endpoint Endpoint) bool {
 
 func endpointID(target string, endpoint Endpoint) string {
 	digest := sha256.Sum256([]byte(strings.Join([]string{
-		target, endpoint.ClusterID, endpoint.JobID, endpoint.Host, strconv.Itoa(endpoint.Port),
+		target, endpoint.WorkloadID, endpoint.JobID, endpoint.Host, strconv.Itoa(endpoint.Port),
 	}, "\x00")))
 	return "sparkrun-" + hex.EncodeToString(digest[:16])
 }

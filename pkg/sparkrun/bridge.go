@@ -38,7 +38,7 @@ type Endpoint struct {
 	LifecycleActions []string                 `json:"lifecycle_actions,omitempty"`
 	Owned            bool                     `json:"owned"`
 	State            string                   `json:"state"`
-	ClusterID        string                   `json:"cluster_id"`
+	WorkloadID       string                   `json:"workload_id"`
 	ClusterName      string                   `json:"cluster_name,omitempty"`
 	JobID            string                   `json:"job_id"`
 	Host             string                   `json:"host"`
@@ -80,8 +80,8 @@ type DiscoverResult struct {
 }
 
 type StopResult struct {
-	State      string   `json:"state"`
-	ClusterIDs []string `json:"cluster_ids"`
+	State       string   `json:"state"`
+	WorkloadIDs []string `json:"workload_ids"`
 }
 
 type Bridge interface {
@@ -190,11 +190,11 @@ func (c *Client) Discover(
 func (c *Client) Stop(
 	ctx context.Context,
 	binding Binding,
-	clusterID string,
+	workloadID string,
 ) (StopResult, error) {
 	var result StopResult
 	err := c.invoke(ctx, bridgeRequest{
-		Operation: "stop", Binding: &binding, ClusterID: clusterID,
+		Operation: "stop", Binding: &binding, WorkloadID: workloadID,
 	}, &result)
 	return result, err
 }
@@ -206,7 +206,7 @@ type bridgeRequest struct {
 	RequestID      string         `json:"request_id"`
 	Operation      string         `json:"operation"`
 	Binding        *Binding       `json:"binding,omitempty"`
-	ClusterID      string         `json:"cluster_id,omitempty"`
+	WorkloadID     string         `json:"workload_id,omitempty"`
 	TimeoutSeconds float64        `json:"timeout_seconds,omitempty"`
 }
 

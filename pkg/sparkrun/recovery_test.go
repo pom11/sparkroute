@@ -25,11 +25,11 @@ func recoveryFixture(t *testing.T, action string) (*Workloads, lifecycle.Target,
 	target.Binding.MaxQueuedBodyBytes = 1 << 20
 	target.Binding.ClusterCandidates = []string{"spark-a"}
 	target.Binding.Recovery = config.RecoveryPolicy{Action: action, FailedProbes: 2, UnhealthyFor: config.Duration(time.Minute), DrainTimeout: config.Duration(time.Second), Backoff: config.Duration(time.Minute), MaxBackoff: config.Duration(4 * time.Minute), MaxRestarts: 3}
-	endpoint := Endpoint{State: "ready", Owned: true, ClusterName: "spark-a", ClusterID: "replacement", JobID: "replacement", Host: "127.0.0.1", Port: 8000, Protocol: "openai", RecipeRevision: target.Binding.RecipeRevision, ServedModels: []string{target.UpstreamModel}}
+	endpoint := Endpoint{State: "ready", Owned: true, ClusterName: "spark-a", WorkloadID: "replacement", JobID: "replacement", Host: "127.0.0.1", Port: 8000, Protocol: "openai", RecipeRevision: target.Binding.RecipeRevision, ServedModels: []string{target.UpstreamModel}}
 	bridge := &fakeBridge{ensured: EnsureResult{State: "ready", Endpoint: &endpoint}}
 	w.Configure([]lifecycle.Target{target})
 	initial := endpoint
-	initial.ClusterID, initial.JobID = "original", "original"
+	initial.WorkloadID, initial.JobID = "original", "original"
 	w.observe(target.Binding, initial, bridge, time.Second, false)
 	return w, target, bridge
 }
@@ -301,7 +301,7 @@ func TestRecoveryUncertainStopAndStaleEndpointFailClosed(t *testing.T) {
 				case "stop_reply_lost":
 					w.jobs["original"].bridge = &uncertainStopBridge{bridge}
 				case "same_job":
-					bridge.ensured.Endpoint.ClusterID, bridge.ensured.Endpoint.JobID = "original", "original"
+					bridge.ensured.Endpoint.WorkloadID, bridge.ensured.Endpoint.JobID = "original", "original"
 				case "borrowed":
 					bridge.ensured.Endpoint.Owned = false
 				case "wrong_cluster":

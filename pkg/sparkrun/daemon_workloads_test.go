@@ -77,7 +77,7 @@ func TestDaemonWrongManagerRejectedBeforeSubmission(t *testing.T) {
 func TestDaemonReadyRejectsInconsistentOwnershipAndIdentity(t *testing.T) {
 	for _, raw := range []string{
 		strings.ReplaceAll(testDaemonReady, `"owned":true`, `"owned":false`),
-		strings.Replace(testDaemonReady, `"cluster_id":"work"`, `"cluster_id":"other"`, 1),
+		strings.Replace(testDaemonReady, `"workload_id":"work"`, `"workload_id":"other"`, 1),
 		strings.ReplaceAll(testDaemonReady, `"healthy":true`, `"healthy":false`),
 		strings.ReplaceAll(testDaemonReady, `"observed_at":123.5`, `"observed_at":0`),
 	} {
@@ -100,10 +100,10 @@ func TestDaemonLifecycleAndInventoryUseCoreContracts(t *testing.T) {
 				}
 				var args map[string]any
 				json.NewDecoder(r.Body).Decode(&args)
-				if action != "workloads" && (args["recipe"] != "recipe" || args["cluster_id"] != "work" || args["binding"] != nil) {
+				if action != "workloads" && (args["recipe"] != "recipe" || args["workload_id"] != "work" || args["binding"] != nil) {
 					t.Errorf("bad lifecycle arguments %v", args)
 				}
-				row := `{"cluster_id":"work","cluster_name":"lab","recipe_revision":"rev","owner":"sparkroute","owned":true,"provider":"coldsnap","actions":["status","sleep","wake"],"state":"sleeping","observation":"recorded"}`
+				row := `{"workload_id":"work","cluster_name":"lab","recipe_revision":"rev","owner":"sparkroute","owned":true,"provider":"coldsnap","actions":["status","sleep","wake"],"state":"sleeping","observation":"recorded"}`
 				if action == "workloads" {
 					fmt.Fprintf(w, `{"workloads":[%s],"providers":[{"name":"coldsnap","version":1}]}`, row)
 				} else {
@@ -138,7 +138,7 @@ func TestDaemonLifecycleAndInventoryUseCoreContracts(t *testing.T) {
 				}
 			default:
 				var value WorkloadInfo
-				if err := c.invokeDaemon(context.Background(), bridgeRequest{Operation: action, Binding: &Binding{Recipe: "recipe", RecipeRevision: "rev"}, ClusterID: "work"}, &value); err != nil {
+				if err := c.invokeDaemon(context.Background(), bridgeRequest{Operation: action, Binding: &Binding{Recipe: "recipe", RecipeRevision: "rev"}, WorkloadID: "work"}, &value); err != nil {
 					t.Fatal(err)
 				}
 				if value.JobID != "work" || !value.Owned || value.LifecycleState != "sleeping" || len(value.PluginsInUse) != 1 {

@@ -19,7 +19,7 @@ func TestLeasesSurviveConfigurationGenerationRetirement(t *testing.T) {
 	defer shared.Close()
 	target := activationTarget()
 	target.Binding.IdleTTL = 30 * time.Millisecond
-	endpoint := Endpoint{State: "ready", Owned: true, ClusterName: "spark-a", ClusterID: "physical-job", JobID: "physical-job", Host: "127.0.0.1", Port: 8001, Protocol: "openai", ServedModels: []string{target.UpstreamModel}, RecipeRevision: target.Binding.RecipeRevision}
+	endpoint := Endpoint{State: "ready", Owned: true, ClusterName: "spark-a", WorkloadID: "physical-job", JobID: "physical-job", Host: "127.0.0.1", Port: 8001, Protocol: "openai", ServedModels: []string{target.UpstreamModel}, RecipeRevision: target.Binding.RecipeRevision}
 	bridge := &fakeBridge{ensured: EnsureResult{State: "ready", Endpoint: &endpoint}, stopped: make(chan string, 2)}
 	makeController := func() *Controller {
 		c, err := New(Options{Bridge: bridge, Registry: endpointregistry.NewMemory(), Targets: []lifecycle.Target{target}, Workloads: shared})
@@ -61,7 +61,7 @@ func TestBorrowedWorkloadNeverGetsAnIdleStop(t *testing.T) {
 	target := activationTarget()
 	target.Binding.IdleTTL = time.Millisecond
 	bridge := &fakeBridge{stopped: make(chan string, 1)}
-	w.observe(target.Binding, Endpoint{ClusterID: "borrowed", Owned: false}, bridge, time.Second, true)
+	w.observe(target.Binding, Endpoint{WorkloadID: "borrowed", Owned: false}, bridge, time.Second, true)
 	w.release("borrowed")
 	select {
 	case <-bridge.stopped:
@@ -124,7 +124,7 @@ func TestIdleSleepWaitsForLastLeaseAndUsesPluginLifecycle(t *testing.T) {
 	target.Binding.IdleTTL = 10 * time.Millisecond
 	target.Binding.IdleAction = "sleep"
 	bridge := &lifecycleFakeBridge{fakeBridge: &fakeBridge{stopped: make(chan string, 1)}, lifecycleCalls: make(chan string, 1)}
-	w.observe(target.Binding, Endpoint{ClusterID: "job", Owned: true}, bridge, time.Second, true)
+	w.observe(target.Binding, Endpoint{WorkloadID: "job", Owned: true}, bridge, time.Second, true)
 	select {
 	case <-bridge.lifecycleCalls:
 		t.Fatal("slept with active lease")
@@ -155,7 +155,7 @@ func TestManualSleepRejectsActiveAndUnownedWorkloads(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer c.Close()
-	w.observe(target.Binding, Endpoint{ClusterID: "job", Owned: true}, bridge, time.Second, true)
+	w.observe(target.Binding, Endpoint{WorkloadID: "job", Owned: true}, bridge, time.Second, true)
 	if _, err := c.WorkloadAction(context.Background(), target.Deployment, "job", "sleep"); err == nil {
 		t.Fatal("slept active workload")
 	}
@@ -182,7 +182,7 @@ func TestUncertainIdleStopBlocksCachedAdmission(t *testing.T) {
 	target := activationTarget()
 	target.Binding.IdleTTL = 10 * time.Millisecond
 	bridge := &uncertainStopBridge{&fakeBridge{}}
-	w.observe(target.Binding, Endpoint{ClusterID: "job", Owned: true}, bridge, time.Second, false)
+	w.observe(target.Binding, Endpoint{WorkloadID: "job", Owned: true}, bridge, time.Second, false)
 	deadline := time.Now().Add(time.Second)
 	for time.Now().Before(deadline) {
 		if w.phase("job") == "unknown" {

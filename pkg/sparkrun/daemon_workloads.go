@@ -12,9 +12,9 @@ import (
 )
 
 // Host workload DTOs are independent of the released stdio bridge format.
-// ClusterID identifies deployed work; daemon job IDs identify invocations.
+// WorkloadID identifies deployed work; daemon job IDs identify invocations.
 type daemonWorkload struct {
-	ClusterID      string   `json:"cluster_id"`
+	WorkloadID     string   `json:"workload_id"`
 	ClusterName    string   `json:"cluster_name"`
 	RecipeRevision string   `json:"recipe_revision"`
 	Owner          string   `json:"owner"`
@@ -30,7 +30,7 @@ func (w daemonWorkload) project() WorkloadInfo {
 	if w.Provider != "" {
 		plugins = append(plugins, w.Provider)
 	}
-	return WorkloadInfo{JobID: w.ClusterID, ClusterName: w.ClusterName, RecipeRevision: w.RecipeRevision,
+	return WorkloadInfo{JobID: w.WorkloadID, ClusterName: w.ClusterName, RecipeRevision: w.RecipeRevision,
 		Owned: w.Owned, PluginsInUse: plugins, LifecycleActions: w.Actions, LifecycleState: w.State, State: w.State}
 }
 func daemonBindingArguments(binding Binding, timeout float64) map[string]any {
@@ -52,12 +52,12 @@ func daemonBindingArguments(binding Binding, timeout float64) map[string]any {
 func decodeDaemonReady(raw json.RawMessage, binding Binding) (EnsureResult, error) {
 	var value struct {
 		State      string         `json:"state"`
-		ClusterID  string         `json:"cluster_id"`
+		WorkloadID string         `json:"workload_id"`
 		Adopted    bool           `json:"adopted"`
 		ObservedAt float64        `json:"observed_at"`
 		Workload   daemonWorkload `json:"workload"`
 		Endpoint   struct {
-			ClusterID       string   `json:"cluster_id"`
+			WorkloadID      string   `json:"workload_id"`
 			ClusterName     string   `json:"cluster_name"`
 			RecipeRevision  string   `json:"recipe_revision"`
 			Owner           string   `json:"owner"`
@@ -77,7 +77,7 @@ func decodeDaemonReady(raw json.RawMessage, binding Binding) (EnsureResult, erro
 		return EnsureResult{}, err
 	}
 	ep, w := value.Endpoint, value.Workload
-	if value.State != "ready" || value.ClusterID == "" || ep.ClusterID != value.ClusterID || w.ClusterID != value.ClusterID ||
+	if value.State != "ready" || value.WorkloadID == "" || ep.WorkloadID != value.WorkloadID || w.WorkloadID != value.WorkloadID ||
 		value.ObservedAt <= 0 || !ep.Healthy || len(ep.ActualModels) == 0 || ep.RecipeRevision == "" ||
 		ep.RecipeRevision != w.RecipeRevision || ep.Owner != w.Owner || w.Owned != (w.Owner == "sparkroute") ||
 		(binding.RecipeRevision != "" && ep.RecipeRevision != binding.RecipeRevision) ||
@@ -92,7 +92,7 @@ func decodeDaemonReady(raw json.RawMessage, binding Binding) (EnsureResult, erro
 	for _, model := range ep.ActualModels {
 		metadata[model] = ModelMetadata{Context: ep.MaxModelLen}
 	}
-	endpoint := &Endpoint{State: "ready", ClusterID: ep.ClusterID, JobID: ep.ClusterID, ClusterName: ep.ClusterName,
+	endpoint := &Endpoint{State: "ready", WorkloadID: ep.WorkloadID, JobID: ep.WorkloadID, ClusterName: ep.ClusterName,
 		Recipe: binding.Recipe, RecipeRevision: ep.RecipeRevision, Host: ep.Host, Port: ep.Port, Protocol: "openai",
 		ServedModels: ep.ActualModels, Runtime: ep.Runtime, Owned: w.Owned, PluginsInUse: info.PluginsInUse,
 		LifecycleActions: w.Actions, ObservedAt: value.ObservedAt, ModelMetadata: metadata}

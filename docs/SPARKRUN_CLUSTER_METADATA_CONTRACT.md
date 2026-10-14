@@ -8,10 +8,12 @@ SPDX-License-Identifier: AGPL-3.0-only
 
 Bridge schema **4** includes optional `cluster_name` to endpoint replies from
 `discover`, `status`, and `ensure_ready`. This is the human-readable named cluster
-recorded in sparkrun job metadata under `cluster`. `cluster_id` and `job_id` remain
-the opaque workload identifiers; the named cluster scopes adoption and registration against configured cluster
-candidates. Ownership still controls stop permission. Display titles do not
-change endpoint identity or binding revisions/fencing.
+recorded in sparkrun job metadata under `cluster`. The bridge's `workload_id` and
+`job_id` remain the opaque workload identifiers (sparkrun's own job metadata file
+still records the same value under its `cluster_id` key); the named cluster scopes
+adoption and registration against configured cluster candidates. Ownership still
+controls stop permission. Display titles do not change endpoint identity or
+binding revisions/fencing.
 
 Both components require schema **4**. This is the integration's first use, so no
 older-schema response filtering or protocol downgrade path is retained. Install the

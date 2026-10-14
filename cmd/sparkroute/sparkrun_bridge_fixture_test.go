@@ -45,7 +45,7 @@ type acceptanceBridgeRequest struct {
 	RequestID      string                   `json:"request_id"`
 	Operation      string                   `json:"operation"`
 	Binding        *acceptanceBridgeBinding `json:"binding,omitempty"`
-	ClusterID      string                   `json:"cluster_id,omitempty"`
+	WorkloadID     string                   `json:"workload_id,omitempty"`
 	TimeoutSeconds float64                  `json:"timeout_seconds,omitempty"`
 }
 
@@ -192,8 +192,8 @@ func runAcceptanceBridge() int {
 		}
 	case "stop":
 		response.Result = map[string]any{
-			"state":       "offline",
-			"cluster_ids": []string{"cold-cluster"},
+			"state":        "offline",
+			"workload_ids": []string{"cold-cluster"},
 		}
 	default:
 		response.OK = false
@@ -222,7 +222,7 @@ func acceptanceEndpoint(
 ) map[string]any {
 	return map[string]any{
 		"state":           "ready",
-		"cluster_id":      clusterID,
+		"workload_id":     clusterID,
 		"cluster_name":    "local-cluster",
 		"owned":           true,
 		"job_id":          jobID,

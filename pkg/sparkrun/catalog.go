@@ -32,7 +32,7 @@ func (c *Client) Catalog(ctx context.Context, operation string, arguments map[st
 }
 
 type Operation struct {
-	ClusterID   string          `json:"cluster_id,omitempty"`
+	WorkloadID  string          `json:"workload_id,omitempty"`
 	ClusterName string          `json:"cluster_name,omitempty"`
 	ID          string          `json:"operation_id"`
 	State       string          `json:"state"`

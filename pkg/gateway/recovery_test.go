@@ -65,12 +65,12 @@ func (b *recoveryBridge) Discover(context.Context, *sparkrun.Binding) (sparkrun.
 func (b *recoveryBridge) Stop(_ context.Context, _ sparkrun.Binding, id string) (sparkrun.StopResult, error) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	if id != b.endpoint.ClusterID {
+	if id != b.endpoint.WorkloadID {
 		return sparkrun.StopResult{}, fmt.Errorf("wrong job")
 	}
 	b.stops++
-	b.endpoint.ClusterID, b.endpoint.JobID = "new-job", "new-job"
-	return sparkrun.StopResult{State: "offline", ClusterIDs: []string{id}}, nil
+	b.endpoint.WorkloadID, b.endpoint.JobID = "new-job", "new-job"
+	return sparkrun.StopResult{State: "offline", WorkloadIDs: []string{id}}, nil
 }
 
 func TestCircuitFailuresRecoverOwnedWorkloadWithoutWaitingForIdle(t *testing.T) {
@@ -93,7 +93,7 @@ func TestCircuitFailuresRecoverOwnedWorkloadWithoutWaitingForIdle(t *testing.T) 
 			u, _ := url.Parse(upstream.URL)
 			host, portText, _ := net.SplitHostPort(u.Host)
 			port, _ := strconv.Atoi(portText)
-			bridge.endpoint = sparkrun.Endpoint{State: "ready", Owned: true, ClusterName: "lab", ClusterID: "old-job", JobID: "old-job", Host: host, Port: port, Protocol: "openai", RecipeRevision: "recipe-revision", ServedModels: []string{"upstream"}}
+			bridge.endpoint = sparkrun.Endpoint{State: "ready", Owned: true, ClusterName: "lab", WorkloadID: "old-job", JobID: "old-job", Host: host, Port: port, Protocol: "openai", RecipeRevision: "recipe-revision", ServedModels: []string{"upstream"}}
 			document := dynamicGatewayDocument("")
 			source := &document.Deployments[0].EndpointSource
 			source.ColdStart = coldStart

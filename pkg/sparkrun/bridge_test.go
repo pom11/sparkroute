@@ -39,7 +39,7 @@ func TestMain(m *testing.M) {
 		} else if request.Operation == "capabilities" {
 			response.Result, _ = json.Marshal(Capabilities{ProtocolVersion: request.SchemaVersion, Operations: []string{"discover", "ensure_ready", "stop"}})
 		} else {
-			endpoint := Endpoint{ClusterID: "opaque-job", JobID: "opaque-job"}
+			endpoint := Endpoint{WorkloadID: "opaque-job", JobID: "opaque-job"}
 			if request.SchemaVersion >= 2 {
 				endpoint.ClusterName = "spark-a"
 			}
@@ -66,7 +66,7 @@ func TestClientUsesCurrentSchemaAndExposesNamedCluster(t *testing.T) {
 		t.Fatal(err)
 	}
 	endpoint := discovered.Endpoints[0]
-	if endpoint.ClusterID != "opaque-job" || endpoint.JobID != "opaque-job" || endpoint.ClusterName != "spark-a" {
+	if endpoint.WorkloadID != "opaque-job" || endpoint.JobID != "opaque-job" || endpoint.ClusterName != "spark-a" {
 		t.Fatalf("endpoint = %#v", endpoint)
 	}
 	if capabilities.ProtocolVersion != ProtocolVersion {

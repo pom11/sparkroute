@@ -535,11 +535,11 @@ func (c *Client) waitDaemon(ctx context.Context, id string, binding *Binding) (j
 						continue
 					}
 					var event struct {
-						ID      int64  `json:"id"`
-						Type    string `json:"type"`
-						Stage   string `json:"stage"`
-						Message string `json:"message"`
-						Cluster string `json:"cluster_id"`
+						ID       int64  `json:"id"`
+						Type     string `json:"type"`
+						Stage    string `json:"stage"`
+						Message  string `json:"message"`
+						Workload string `json:"workload_id"`
 					}
 					if json.Unmarshal([]byte(strings.TrimPrefix(line, "data: ")), &event) != nil {
 						break
@@ -556,7 +556,7 @@ func (c *Client) waitDaemon(ctx context.Context, id string, binding *Binding) (j
 						if phase == "" {
 							phase = event.Message
 						}
-						c.OnProgress(*binding, Operation{ID: id, State: "running", Phase: phase, ClusterID: event.Cluster})
+						c.OnProgress(*binding, Operation{ID: id, State: "running", Phase: phase, WorkloadID: event.Workload})
 					}
 				}
 			}
@@ -598,7 +598,7 @@ func (c *Client) ensureDaemon(ctx context.Context, binding Binding, timeout time
 	metadataCtx, metadataCancel := context.WithTimeout(ctx, 2*time.Second)
 	defer metadataCancel()
 	_, metadataErr := c.daemon.json(metadataCtx, "POST", "/v1/ops/plugins.sparkroute.endpoints.metadata", map[string]any{
-		"cluster_id": result.Endpoint.ClusterID, "recipe_revision": result.Endpoint.RecipeRevision,
+		"workload_id": result.Endpoint.WorkloadID, "recipe_revision": result.Endpoint.RecipeRevision,
 		"served_models": result.Endpoint.ServedModels,
 	}, "", &metadata)
 	if metadataErr == nil {
@@ -663,8 +663,8 @@ func (c *Client) invokeDaemon(ctx context.Context, request bridgeRequest, result
 			args = daemonBindingArguments(*request.Binding, 0)
 		}
 	}
-	if request.ClusterID != "" {
-		args["cluster_id"] = request.ClusterID
+	if request.WorkloadID != "" {
+		args["workload_id"] = request.WorkloadID
 	}
 	for key, value := range request.Arguments {
 		args[key] = value

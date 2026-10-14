@@ -223,7 +223,7 @@ func (w *Workloads) recoverJob(ctx context.Context, id string, job *workload, r 
 	w.mu.Unlock()
 	stopCtx, cancelStop := context.WithTimeout(ctx, timeout)
 	stopped, err := bridge.Stop(stopCtx, bridgeBinding(binding), id)
-	if err == nil && (stopped.State != "offline" || !slices.Contains(stopped.ClusterIDs, id)) {
+	if err == nil && (stopped.State != "offline" || !slices.Contains(stopped.WorkloadIDs, id)) {
 		err = fmt.Errorf("stop receipt did not confirm the exact workload")
 	}
 	cancelStop()
@@ -268,7 +268,7 @@ func (w *Workloads) recoverJob(ctx context.Context, id string, job *workload, r 
 		}
 		if startErr == nil && (result.State != "ready" || result.Endpoint == nil || !result.Endpoint.Owned ||
 			result.Endpoint.State != "ready" || result.Endpoint.Protocol != "openai" || validateHost(result.Endpoint.Host) != nil || result.Endpoint.Port < 1 || result.Endpoint.Port > 65535 || len(result.Endpoint.ServedModels) == 0 ||
-			result.Endpoint.ClusterID == "" || result.Endpoint.JobID == "" || result.Endpoint.ClusterID == id ||
+			result.Endpoint.WorkloadID == "" || result.Endpoint.JobID == "" || result.Endpoint.WorkloadID == id ||
 			result.Endpoint.RecipeRevision != binding.RecipeRevision || !slices.Contains(binding.ClusterCandidates, result.Endpoint.ClusterName)) {
 			// Do not repeatedly adopt a stale or foreign receipt as a restart.
 			w.recoveryFailedLocked(r, "recovery_invalid_endpoint")

@@ -23,7 +23,7 @@ import (
 	"time"
 )
 
-const testDaemonReady = `{"state":"ready","cluster_id":"work","adopted":true,"observed_at":123.5,"endpoint":{"cluster_id":"work","owner":"sparkroute","recipe_revision":"rev","actual_models":["model"],"healthy":true,"native_protocols":["openai"]},"workload":{"cluster_id":"work","owner":"sparkroute","owned":true,"recipe_revision":"rev"}}`
+const testDaemonReady = `{"state":"ready","workload_id":"work","adopted":true,"observed_at":123.5,"endpoint":{"workload_id":"work","owner":"sparkroute","recipe_revision":"rev","actual_models":["model"],"healthy":true,"native_protocols":["openai"]},"workload":{"workload_id":"work","owner":"sparkroute","owned":true,"recipe_revision":"rev"}}`
 
 const testDaemonJob = "0123456789abcdef0123456789abcdef"
 
@@ -159,7 +159,7 @@ func TestDaemonSSEProgressReplayGapAndNewIntent(t *testing.T) {
 				t.Error("gap did not reset cursor")
 			}
 			w.Header().Set("Content-Type", "text/event-stream")
-			fmt.Fprint(w, "id: 7\ndata: {\"id\":7,\"type\":\"progress\",\"stage\":\"launch\",\"cluster_id\":\"work\"}\n\n")
+			fmt.Fprint(w, "id: 7\ndata: {\"id\":7,\"type\":\"progress\",\"stage\":\"launch\",\"workload_id\":\"work\"}\n\n")
 		default:
 			polls++
 			state := "running"
@@ -174,7 +174,7 @@ func TestDaemonSSEProgressReplayGapAndNewIntent(t *testing.T) {
 	client, _ := testDaemonClient(t, handler)
 	seen := false
 	client.SetProgressObserver(func(_ Binding, op Operation) {
-		if op.Phase == "launch" && op.ClusterID == "work" {
+		if op.Phase == "launch" && op.WorkloadID == "work" {
 			seen = true
 		}
 	})

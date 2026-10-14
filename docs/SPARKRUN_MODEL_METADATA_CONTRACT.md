@@ -30,7 +30,7 @@ projection, or deliver credentials.
 ```json
 {
   "state": "ready",
-  "cluster_id": "sparkrun_...",
+  "workload_id": "sparkrun_...",
   "job_id": "sparkrun_...",
   "host": "10.0.0.12",
   "port": 8000,

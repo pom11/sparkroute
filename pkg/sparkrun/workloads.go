@@ -98,7 +98,7 @@ func (w *Workloads) Configure(targets []lifecycle.Target) {
 func (w *Workloads) observe(binding lifecycle.Binding, endpoint Endpoint, bridge Bridge, timeout time.Duration, acquire bool, prepared ...bool) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
-	job := w.jobs[endpoint.ClusterID]
+	job := w.jobs[endpoint.WorkloadID]
 	if job == nil {
 		job = &workload{binding: cloneBinding(binding), bridge: bridge, timeout: timeout, cluster: endpoint.ClusterName}
 		if w.policies != nil {
@@ -109,7 +109,7 @@ func (w *Workloads) observe(binding lifecycle.Binding, endpoint Endpoint, bridge
 				job.binding.Recovery = config.RecoveryPolicy{}
 			}
 		}
-		w.jobs[endpoint.ClusterID] = job
+		w.jobs[endpoint.WorkloadID] = job
 	}
 	job.owned = endpoint.Owned
 	if job.prepared != nil || len(prepared) > 0 && prepared[0] {
@@ -117,7 +117,7 @@ func (w *Workloads) observe(binding lifecycle.Binding, endpoint Endpoint, bridge
 		job.prepared = &copy
 		job.preparedUntil = time.Now().Add(90 * time.Second)
 	}
-	w.observeRecoveryLocked(endpoint.ClusterID, job)
+	w.observeRecoveryLocked(endpoint.WorkloadID, job)
 	if acquire {
 		job.active++
 		job.idleSince = time.Time{}
@@ -128,7 +128,7 @@ func (w *Workloads) observe(binding lifecycle.Binding, endpoint Endpoint, bridge
 			job.timer = nil
 		}
 	} else if job.timer == nil && !job.stopped && job.active == 0 {
-		w.scheduleLocked(endpoint.ClusterID, job)
+		w.scheduleLocked(endpoint.WorkloadID, job)
 	}
 }
 

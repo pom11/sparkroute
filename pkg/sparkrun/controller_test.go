@@ -52,15 +52,15 @@ func (b *fakeBridge) Discover(context.Context, *Binding) (DiscoverResult, error)
 func (b *fakeBridge) Stop(
 	_ context.Context,
 	_ Binding,
-	clusterID string,
+	workloadID string,
 ) (StopResult, error) {
 	b.mu.Lock()
 	b.stopCalls++
 	b.mu.Unlock()
 	if b.stopped != nil {
-		b.stopped <- clusterID
+		b.stopped <- workloadID
 	}
-	return StopResult{State: "offline", ClusterIDs: []string{clusterID}}, nil
+	return StopResult{State: "offline", WorkloadIDs: []string{workloadID}}, nil
 }
 
 func TestControllerActivatesRegistersAndUsesLocalFastPath(t *testing.T) {
@@ -69,7 +69,7 @@ func TestControllerActivatesRegistersAndUsesLocalFastPath(t *testing.T) {
 	registry := endpointregistry.NewMemory()
 	bridge := &fakeBridge{
 		ensured: EnsureResult{State: "ready", Endpoint: &Endpoint{
-			State: "ready", Owned: true, ClusterName: "spark-a", ClusterID: "sparkrun_aaaaaaaaaaaa_bbbbbbbb",
+			State: "ready", Owned: true, ClusterName: "spark-a", WorkloadID: "sparkrun_aaaaaaaaaaaa_bbbbbbbb",
 			JobID: "sparkrun_aaaaaaaaaaaa_bbbbbbbb", Host: "10.0.0.2", Port: 8000,
 			Protocol: "openai", ServedModels: []string{"Qwen/Qwen3-32B"},
 			RecipeRevision: "abc123abc123", Runtime: "vllm",
@@ -130,7 +130,7 @@ func TestControllerRejectsBridgeEndpointIdentity(t *testing.T) {
 
 	target := activationTarget()
 	bridge := &fakeBridge{ensured: EnsureResult{State: "ready", Endpoint: &Endpoint{
-		State: "ready", Owned: true, ClusterName: "spark-a", ClusterID: "cluster", JobID: "job", Host: "host/path", Port: 8000,
+		State: "ready", Owned: true, ClusterName: "spark-a", WorkloadID: "cluster", JobID: "job", Host: "host/path", Port: 8000,
 		Protocol: "openai", ServedModels: []string{target.UpstreamModel},
 		RecipeRevision: target.Binding.RecipeRevision,
 	}}}
@@ -162,7 +162,7 @@ func TestControllerPublishesAndWithdrawsDiscoveredModelMetadata(t *testing.T) {
 		Source: lifecycle.EndpointDiscovered, Controller: ControllerName,
 	}
 	bridge := &fakeBridge{discovered: DiscoverResult{Endpoints: []Endpoint{{
-		State: "ready", Owned: true, ClusterName: "spark-a", ClusterID: "cluster", JobID: "job", Host: "10.0.0.2", Port: 8000,
+		State: "ready", Owned: true, ClusterName: "spark-a", WorkloadID: "cluster", JobID: "job", Host: "10.0.0.2", Port: 8000,
 		Protocol: "openai", ServedModels: []string{target.UpstreamModel}, Runtime: "vllm",
 		ModelMetadata: map[string]ModelMetadata{
 			target.UpstreamModel: {
@@ -226,7 +226,7 @@ func TestControllerIgnoresInvalidDiscoveredModelMetadata(t *testing.T) {
 	}
 	invalidContext := -1
 	bridge := &fakeBridge{discovered: DiscoverResult{Endpoints: []Endpoint{{
-		State: "ready", Owned: true, ClusterName: "spark-a", ClusterID: "cluster", JobID: "job", Host: "10.0.0.2", Port: 8000,
+		State: "ready", Owned: true, ClusterName: "spark-a", WorkloadID: "cluster", JobID: "job", Host: "10.0.0.2", Port: 8000,
 		Protocol: "openai", ServedModels: []string{target.UpstreamModel},
 		ModelMetadata: map[string]ModelMetadata{
 			target.UpstreamModel: {Context: &invalidContext},
@@ -273,7 +273,7 @@ func TestControllerStopsAfterIdleTTL(t *testing.T) {
 	target.Binding.IdleTTL = 20 * time.Millisecond
 	bridge := &fakeBridge{
 		ensured: EnsureResult{State: "ready", Endpoint: &Endpoint{
-			State: "ready", Owned: true, ClusterName: "spark-a", ClusterID: "cluster-id", JobID: "job-id", Host: "127.0.0.1", Port: 8000,
+			State: "ready", Owned: true, ClusterName: "spark-a", WorkloadID: "cluster-id", JobID: "job-id", Host: "127.0.0.1", Port: 8000,
 			Protocol: "openai", ServedModels: []string{target.UpstreamModel},
 			RecipeRevision: target.Binding.RecipeRevision,
 		}},
@@ -314,7 +314,7 @@ func TestControllerReconcilesDiscoveredAndPinnedEndpoints(t *testing.T) {
 	}
 	activation := activationTarget()
 	activationEndpoint := Endpoint{
-		State: "ready", Owned: true, ClusterName: "spark-a", ClusterID: "llm-cluster", JobID: "llm-job", Host: "spark-b", Port: 8002,
+		State: "ready", Owned: true, ClusterName: "spark-a", WorkloadID: "llm-cluster", JobID: "llm-job", Host: "spark-b", Port: 8002,
 		Protocol: "openai", ServedModels: []string{activation.UpstreamModel},
 		RecipeRevision: activation.Binding.RecipeRevision,
 	}
@@ -322,7 +322,7 @@ func TestControllerReconcilesDiscoveredAndPinnedEndpoints(t *testing.T) {
 		ensured: EnsureResult{State: "ready", Endpoint: &activationEndpoint},
 		discovered: DiscoverResult{Endpoints: []Endpoint{
 			{
-				State: "ready", Owned: true, ClusterName: "spark-a", ClusterID: "embed-cluster", JobID: "embed-job", Host: "spark-a", Port: 8001,
+				State: "ready", Owned: true, ClusterName: "spark-a", WorkloadID: "embed-cluster", JobID: "embed-job", Host: "spark-a", Port: 8001,
 				Protocol: "openai", ServedModels: []string{"embed-model"}, RecipeRevision: "other-revision",
 			},
 			activationEndpoint,
@@ -441,7 +441,7 @@ func TestClusterNameIsAdvisoryAndDoesNotChangeEndpointIdentity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	original := Endpoint{State: "ready", Owned: true, ClusterName: "spark-a", ClusterID: "opaque-job", JobID: "opaque-job", Host: "127.0.0.1", Port: 8000, Protocol: "openai", ServedModels: []string{target.UpstreamModel}, RecipeRevision: target.Binding.RecipeRevision}
+	original := Endpoint{State: "ready", Owned: true, ClusterName: "spark-a", WorkloadID: "opaque-job", JobID: "opaque-job", Host: "127.0.0.1", Port: 8000, Protocol: "openai", ServedModels: []string{target.UpstreamModel}, RecipeRevision: target.Binding.RecipeRevision}
 	before, _, err := controller.endpointFromBridge(target, original, 7)
 	if err != nil {
 		t.Fatal(err)
@@ -481,7 +481,7 @@ func TestDaemonObservationExpiryDoesNotRefreshOnFetch(t *testing.T) {
 		t.Fatal(err)
 	}
 	observed := now.Add(-30 * time.Second)
-	value := Endpoint{State: "ready", ClusterID: "work", JobID: "work", Host: "127.0.0.1", Port: 8000, Protocol: "openai", ServedModels: []string{target.UpstreamModel}, ObservedAt: float64(observed.Unix()), RecipeRevision: target.Binding.RecipeRevision}
+	value := Endpoint{State: "ready", WorkloadID: "work", JobID: "work", Host: "127.0.0.1", Port: 8000, Protocol: "openai", ServedModels: []string{target.UpstreamModel}, ObservedAt: float64(observed.Unix()), RecipeRevision: target.Binding.RecipeRevision}
 	first, _, err := controller.endpointFromBridge(target, value, 1)
 	if err != nil {
 		t.Fatal(err)

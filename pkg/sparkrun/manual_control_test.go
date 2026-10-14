@@ -19,7 +19,7 @@ func manualControlFixture(t *testing.T, owned bool) (WorkloadControl, *lifecycle
 	target.Binding.ColdStart = lifecycle.ColdStartReject
 	target.Binding.MaxQueuedWaiters = 100
 	target.Binding.MaxQueuedBodyBytes = 1 << 20
-	endpoint := &Endpoint{State: "ready", Owned: owned, ClusterName: "spark-a", ClusterID: "job", JobID: "job",
+	endpoint := &Endpoint{State: "ready", Owned: owned, ClusterName: "spark-a", WorkloadID: "job", JobID: "job",
 		Host: "127.0.0.1", Port: 8000, Protocol: "openai", ServedModels: []string{target.UpstreamModel}, RecipeRevision: target.Binding.RecipeRevision}
 	bridge := &lifecycleFakeBridge{fakeBridge: &fakeBridge{ensured: EnsureResult{State: "ready", Endpoint: endpoint}},
 		report: WorkloadReport{Workloads: []WorkloadInfo{{JobID: "job", Owned: owned, ClusterName: "spark-a", RecipeRevision: target.Binding.RecipeRevision, LifecycleState: "running"}}}}

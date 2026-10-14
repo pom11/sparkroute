@@ -94,7 +94,7 @@ func (c *Client) Lifecycle(ctx context.Context, binding Binding, job, action str
 		return WorkloadInfo{}, fmt.Errorf("unsupported lifecycle action")
 	}
 	var result WorkloadInfo
-	err := c.invoke(ctx, bridgeRequest{Operation: action, Binding: &binding, ClusterID: job, TimeoutSeconds: timeout.Seconds()}, &result)
+	err := c.invoke(ctx, bridgeRequest{Operation: action, Binding: &binding, WorkloadID: job, TimeoutSeconds: timeout.Seconds()}, &result)
 	if err == nil {
 		err = validateWorkloadInfo(result)
 	}
