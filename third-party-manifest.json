@@ -12,7 +12,7 @@
           "sha256": "96f408bfae65bf137fc2525d3ecb030271c50c1e90799f87abf8846d8dd505cc"
         }
       ],
-      "version": "go1.25.14"
+      "version": "go1.26.9"
     },
     {
       "name": "github.com/cenkalti/backoff/v5",
@@ -52,7 +52,7 @@
           "sha256": "b40930bbcf80744c86c46a12bc9da056641d722716c378f5659b9e555ef833e1"
         }
       ],
-      "version": "v1.4.3"
+      "version": "v1.4.4"
     },
     {
       "name": "github.com/go-logr/stdr",
@@ -150,7 +150,7 @@
           "sha256": "1ae07514be1d7bb33f0698f8d91fb51b8b9fe1463157ec1c72081a49b9bc6f40"
         }
       ],
-      "version": "v1.44.0"
+      "version": "v1.45.0"
     },
     {
       "name": "go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp",
@@ -160,7 +160,7 @@
           "sha256": "1ae07514be1d7bb33f0698f8d91fb51b8b9fe1463157ec1c72081a49b9bc6f40"
         }
       ],
-      "version": "v1.44.0"
+      "version": "v1.45.0"
     },
     {
       "name": "go.opentelemetry.io/otel/exporters/otlp/otlptrace",
@@ -170,7 +170,7 @@
           "sha256": "1ae07514be1d7bb33f0698f8d91fb51b8b9fe1463157ec1c72081a49b9bc6f40"
         }
       ],
-      "version": "v1.44.0"
+      "version": "v1.45.0"
     },
     {
       "name": "go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp",
@@ -180,7 +180,7 @@
           "sha256": "1ae07514be1d7bb33f0698f8d91fb51b8b9fe1463157ec1c72081a49b9bc6f40"
         }
       ],
-      "version": "v1.44.0"
+      "version": "v1.45.0"
     },
     {
       "name": "go.opentelemetry.io/otel/metric",
@@ -190,7 +190,7 @@
           "sha256": "1ae07514be1d7bb33f0698f8d91fb51b8b9fe1463157ec1c72081a49b9bc6f40"
         }
       ],
-      "version": "v1.44.0"
+      "version": "v1.45.0"
     },
     {
       "name": "go.opentelemetry.io/otel/sdk",
@@ -200,7 +200,7 @@
           "sha256": "1ae07514be1d7bb33f0698f8d91fb51b8b9fe1463157ec1c72081a49b9bc6f40"
         }
       ],
-      "version": "v1.44.0"
+      "version": "v1.45.0"
     },
     {
       "name": "go.opentelemetry.io/otel/sdk/metric",
@@ -210,7 +210,7 @@
           "sha256": "1ae07514be1d7bb33f0698f8d91fb51b8b9fe1463157ec1c72081a49b9bc6f40"
         }
       ],
-      "version": "v1.44.0"
+      "version": "v1.45.0"
     },
     {
       "name": "go.opentelemetry.io/otel/trace",
@@ -220,7 +220,7 @@
           "sha256": "1ae07514be1d7bb33f0698f8d91fb51b8b9fe1463157ec1c72081a49b9bc6f40"
         }
       ],
-      "version": "v1.44.0"
+      "version": "v1.45.0"
     },
     {
       "name": "go.opentelemetry.io/proto/otlp",
@@ -230,7 +230,7 @@
           "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"
         }
       ],
-      "version": "v1.10.0"
+      "version": "v1.11.0"
     },
     {
       "name": "golang.org/x/net",
@@ -244,7 +244,7 @@
           "sha256": "96f408bfae65bf137fc2525d3ecb030271c50c1e90799f87abf8846d8dd505cc"
         }
       ],
-      "version": "v0.56.0"
+      "version": "v0.60.0"
     },
     {
       "name": "golang.org/x/sys",
@@ -258,7 +258,7 @@
           "sha256": "96f408bfae65bf137fc2525d3ecb030271c50c1e90799f87abf8846d8dd505cc"
         }
       ],
-      "version": "v0.46.0"
+      "version": "v0.48.0"
     },
     {
       "name": "golang.org/x/text",
@@ -272,7 +272,7 @@
           "sha256": "96f408bfae65bf137fc2525d3ecb030271c50c1e90799f87abf8846d8dd505cc"
         }
       ],
-      "version": "v0.39.0"
+      "version": "v0.42.0"
     },
     {
       "name": "google.golang.org/genproto/googleapis/api",
@@ -282,7 +282,7 @@
           "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
         }
       ],
-      "version": "v0.0.0-20260526163538-3dc84a4a5aaa"
+      "version": "v0.0.0-20260803160001-6ac0973c030d"
     },
     {
       "name": "google.golang.org/genproto/googleapis/rpc",
@@ -292,7 +292,7 @@
           "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
         }
       ],
-      "version": "v0.0.0-20260526163538-3dc84a4a5aaa"
+      "version": "v0.0.0-20260803160001-6ac0973c030d"
     },
     {
       "name": "google.golang.org/grpc",

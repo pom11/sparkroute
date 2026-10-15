@@ -5,7 +5,7 @@ file digests are recorded in third-party-manifest.json.
 
 
 ========================================================================
-Go go1.25.14 — LICENSE
+Go go1.26.9 — LICENSE
 ========================================================================
 
 Copyright 2009 The Go Authors.
@@ -38,7 +38,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
 ========================================================================
-Go go1.25.14 — PATENTS
+Go go1.26.9 — PATENTS
 ========================================================================
 
 Additional IP Rights Grant (Patents)
@@ -147,7 +147,7 @@ SOFTWARE.
 
 
 ========================================================================
-github.com/go-logr/logr v1.4.3 — LICENSE
+github.com/go-logr/logr v1.4.4 — LICENSE
 ========================================================================
 
                                  Apache License
@@ -1162,7 +1162,7 @@ go.opentelemetry.io/auto/sdk v1.2.1 — LICENSE
 
 
 ========================================================================
-go.opentelemetry.io/otel v1.44.0 — LICENSE
+go.opentelemetry.io/otel v1.45.0 — LICENSE
 ========================================================================
 
                                  Apache License
@@ -1398,7 +1398,7 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ========================================================================
-go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp v1.44.0 — LICENSE
+go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp v1.45.0 — LICENSE
 ========================================================================
 
                                  Apache License
@@ -1634,7 +1634,7 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ========================================================================
-go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.44.0 — LICENSE
+go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.45.0 — LICENSE
 ========================================================================
 
                                  Apache License
@@ -1870,7 +1870,7 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ========================================================================
-go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.44.0 — LICENSE
+go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.45.0 — LICENSE
 ========================================================================
 
                                  Apache License
@@ -2106,7 +2106,7 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ========================================================================
-go.opentelemetry.io/otel/metric v1.44.0 — LICENSE
+go.opentelemetry.io/otel/metric v1.45.0 — LICENSE
 ========================================================================
 
                                  Apache License
@@ -2342,7 +2342,7 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ========================================================================
-go.opentelemetry.io/otel/sdk v1.44.0 — LICENSE
+go.opentelemetry.io/otel/sdk v1.45.0 — LICENSE
 ========================================================================
 
                                  Apache License
@@ -2578,7 +2578,7 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ========================================================================
-go.opentelemetry.io/otel/sdk/metric v1.44.0 — LICENSE
+go.opentelemetry.io/otel/sdk/metric v1.45.0 — LICENSE
 ========================================================================
 
                                  Apache License
@@ -2814,7 +2814,7 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ========================================================================
-go.opentelemetry.io/otel/trace v1.44.0 — LICENSE
+go.opentelemetry.io/otel/trace v1.45.0 — LICENSE
 ========================================================================
 
                                  Apache License
@@ -3050,7 +3050,7 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ========================================================================
-go.opentelemetry.io/proto/otlp v1.10.0 — LICENSE
+go.opentelemetry.io/proto/otlp v1.11.0 — LICENSE
 ========================================================================
 
                                  Apache License
@@ -3257,7 +3257,7 @@ go.opentelemetry.io/proto/otlp v1.10.0 — LICENSE
 
 
 ========================================================================
-golang.org/x/net v0.56.0 — LICENSE
+golang.org/x/net v0.60.0 — LICENSE
 ========================================================================
 
 Copyright 2009 The Go Authors.
@@ -3290,7 +3290,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
 ========================================================================
-golang.org/x/net v0.56.0 — PATENTS
+golang.org/x/net v0.60.0 — PATENTS
 ========================================================================
 
 Additional IP Rights Grant (Patents)
@@ -3318,7 +3318,7 @@ shall terminate as of the date such litigation is filed.
 
 
 ========================================================================
-golang.org/x/sys v0.46.0 — LICENSE
+golang.org/x/sys v0.48.0 — LICENSE
 ========================================================================
 
 Copyright 2009 The Go Authors.
@@ -3351,7 +3351,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
 ========================================================================
-golang.org/x/sys v0.46.0 — PATENTS
+golang.org/x/sys v0.48.0 — PATENTS
 ========================================================================
 
 Additional IP Rights Grant (Patents)
@@ -3379,7 +3379,7 @@ shall terminate as of the date such litigation is filed.
 
 
 ========================================================================
-golang.org/x/text v0.39.0 — LICENSE
+golang.org/x/text v0.42.0 — LICENSE
 ========================================================================
 
 Copyright 2009 The Go Authors.
@@ -3412,7 +3412,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
 ========================================================================
-golang.org/x/text v0.39.0 — PATENTS
+golang.org/x/text v0.42.0 — PATENTS
 ========================================================================
 
 Additional IP Rights Grant (Patents)
@@ -3440,7 +3440,7 @@ shall terminate as of the date such litigation is filed.
 
 
 ========================================================================
-google.golang.org/genproto/googleapis/api v0.0.0-20260526163538-3dc84a4a5aaa — LICENSE
+google.golang.org/genproto/googleapis/api v0.0.0-20260803160001-6ac0973c030d — LICENSE
 ========================================================================
 
 
@@ -3648,7 +3648,7 @@ google.golang.org/genproto/googleapis/api v0.0.0-20260526163538-3dc84a4a5aaa —
 
 
 ========================================================================
-google.golang.org/genproto/googleapis/rpc v0.0.0-20260526163538-3dc84a4a5aaa — LICENSE
+google.golang.org/genproto/googleapis/rpc v0.0.0-20260803160001-6ac0973c030d — LICENSE
 ========================================================================
 
 
