@@ -26,9 +26,10 @@ project_rules:
     # only so its version does not drift from the artifact it ships inside.
     - { type: package,    path: web/package.json }
 
-# Minimum required by go-llm v0.3.0; release CI pins its toolchain separately.
+# Minimum required by golang.org/x/net v0.60 (Go 1.26); kept equal to the release
+# toolchain so stdlib security fixes are always in the floor. Release CI pins separately.
 go_toolchain:
-  go: "1.25.14"
+  go: "1.26.9"
 
 ci:
   test_branches: [ main ]
@@ -39,7 +40,7 @@ ci:
   go:
     # Distinct from go_toolchain.go above, which is the module's *minimum*.
     # Pin the toolchain used for release qualification and reproducible builds.
-    go_version: "1.25.14"
+    go_version: "1.26.9"
     binaries:
       - name: sparkroute
         package: ./cmd/sparkroute

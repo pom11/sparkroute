@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 
 
-ARG GO_IMAGE=golang:1.25.14-alpine
+ARG GO_IMAGE=golang:1.26.9-alpine
 ARG NODE_IMAGE=node:24-alpine
 ARG RUNTIME_IMAGE=gcr.io/distroless/static-debian12:nonroot
 

@@ -45,7 +45,7 @@ storage do not require an external database.
 
 ## Run
 
-Build from source with Go 1.25.14 or newer. The embedded console is committed,
+Build from source with Go 1.26.9 or newer. The embedded console is committed,
 so running the Go command does not require Node. Release archives and checksums
 will be available from [GitHub Releases](https://github.com/sparksq/sparkroute/releases).
 See [Release builds](docs/RELEASES.md) for supported platforms and verification.
