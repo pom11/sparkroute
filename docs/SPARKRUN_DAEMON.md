@@ -1,3 +1,9 @@
+<!--
+SPDX-FileCopyrightText: 2026 Scitrera LLC
+SPDX-FileCopyrightText: 2026 Fox Engine Ltd.
+SPDX-License-Identifier: AGPL-3.0-only
+-->
+
 # Direct Sparkrun daemon client
 
 SparkRoute can use daemon protocol 1 instead of the stdio bridge protocol 5.

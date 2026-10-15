@@ -301,11 +301,43 @@ func updateAcceptanceBridgeState(
 	return state, nil
 }
 
+// mustAcceptanceBridgeState reads without the fixture lock. Writers publish by
+// atomic rename, so a reader always sees a whole document; and a bridge killed
+// mid-update (activation timeouts do that) can leave the lock directory behind,
+// which would otherwise stall every later read for the full lock deadline.
 func mustAcceptanceBridgeState(t *testing.T, path string) acceptanceBridgeState {
 	t.Helper()
-	state, err := updateAcceptanceBridgeState(path, nil)
+	var state acceptanceBridgeState
+	raw, err := os.ReadFile(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return state
+	}
 	if err != nil {
 		t.Fatalf("read acceptance bridge state: %v", err)
 	}
+	if err := json.Unmarshal(raw, &state); err != nil {
+		t.Fatalf("read acceptance bridge state: %v", err)
+	}
 	return state
+}
+
+func TestAcceptanceBridgeStateReadIgnoresAbandonedLock(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "bridge.json")
+	if _, err := updateAcceptanceBridgeState(path, func(state *acceptanceBridgeState) error {
+		state.ColdActive = true
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	// A bridge killed while holding the lock leaves its directory behind.
+	if err := os.Mkdir(path+".lock", 0o700); err != nil {
+		t.Fatal(err)
+	}
+	started := time.Now()
+	if !mustAcceptanceBridgeState(t, path).ColdActive {
+		t.Fatal("state not read")
+	}
+	if elapsed := time.Since(started); elapsed > time.Second {
+		t.Fatalf("read waited %s on an abandoned lock", elapsed)
+	}
 }
