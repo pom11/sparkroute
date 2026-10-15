@@ -23,21 +23,23 @@ func TestDaemonCoreActivationUsesFlatBindingAndPreservesAdoption(t *testing.T) {
 				switch r.URL.Path {
 				case "/v1/ops/workloads.ensure_ready":
 					var args map[string]any
-					json.NewDecoder(r.Body).Decode(&args)
+					if err := json.NewDecoder(r.Body).Decode(&args); err != nil {
+						t.Error(err)
+					}
 					if args["recipe"] != "recipe" || args["recipe_revision"] != "rev" || args["binding"] != nil || args["owner"] != nil || args["manager"] != nil {
 						t.Errorf("wrong core request %v", args)
 					}
 					submitted.Add(1)
 					w.WriteHeader(202)
-					fmt.Fprintf(w, `{"job_id":%q}`, testDaemonJob)
+					_, _ = fmt.Fprintf(w, `{"job_id":%q}`, testDaemonJob)
 				case "/v1/jobs/" + testDaemonJob:
 					raw := strings.ReplaceAll(testDaemonReady, `"owner":"sparkroute"`, `"owner":"`+owner+`"`)
 					if owner != "sparkroute" {
 						raw = strings.ReplaceAll(raw, `"owned":true`, `"owned":false`)
 					}
-					fmt.Fprintf(w, `{"id":%q,"state":"succeeded","result":%s}`, testDaemonJob, raw)
+					_, _ = fmt.Fprintf(w, `{"id":%q,"state":"succeeded","result":%s}`, testDaemonJob, raw)
 				case "/v1/ops/plugins.sparkroute.endpoints.metadata":
-					fmt.Fprint(w, `{"model_metadata":{"model":{"size_b":7}}}`)
+					_, _ = fmt.Fprint(w, `{"model_metadata":{"model":{"size_b":7}}}`)
 				default:
 					t.Errorf("unexpected route %s", r.URL.Path)
 					w.WriteHeader(404)
@@ -62,7 +64,7 @@ func TestDaemonWrongManagerRejectedBeforeSubmission(t *testing.T) {
 	base := daemonHandler(func(w http.ResponseWriter, r *http.Request) { posts.Add(1) })
 	c, _ := testDaemonClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/v1/info" {
-			fmt.Fprint(w, `{"protocol":1,"binding":"controller","profile":"sparkrun","manager":"daemon"}`)
+			_, _ = fmt.Fprint(w, `{"protocol":1,"binding":"controller","profile":"sparkrun","manager":"daemon"}`)
 			return
 		}
 		base(w, r)
@@ -95,24 +97,26 @@ func TestDaemonLifecycleAndInventoryUseCoreContracts(t *testing.T) {
 					t.Errorf("unexpected route %s", r.URL.Path)
 				}
 				if r.URL.Path == "/v1/ops/workloads.plugins" {
-					fmt.Fprint(w, `{"plugins":[{"name":"coldsnap","plugin_id":"coldsnap","enabled":true,"loaded":true,"version":"1","lifecycle":true}]}`)
+					_, _ = fmt.Fprint(w, `{"plugins":[{"name":"coldsnap","plugin_id":"coldsnap","enabled":true,"loaded":true,"version":"1","lifecycle":true}]}`)
 					return
 				}
 				var args map[string]any
-				json.NewDecoder(r.Body).Decode(&args)
+				if err := json.NewDecoder(r.Body).Decode(&args); err != nil {
+					t.Error(err)
+				}
 				if action != "workloads" && (args["recipe"] != "recipe" || args["workload_id"] != "work" || args["binding"] != nil) {
 					t.Errorf("bad lifecycle arguments %v", args)
 				}
 				row := `{"workload_id":"work","cluster_name":"lab","recipe_revision":"rev","owner":"sparkroute","owned":true,"provider":"coldsnap","actions":["status","sleep","wake"],"state":"sleeping","observation":"recorded"}`
 				if action == "workloads" {
-					fmt.Fprintf(w, `{"workloads":[%s],"providers":[{"name":"coldsnap","version":1}]}`, row)
+					_, _ = fmt.Fprintf(w, `{"workloads":[%s],"providers":[{"name":"coldsnap","version":1}]}`, row)
 				} else {
-					fmt.Fprint(w, row)
+					_, _ = fmt.Fprint(w, row)
 				}
 			})
 			c, _ := testDaemonClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				if r.URL.Path == "/v1/ops" {
-					fmt.Fprintf(w, `[{"name":%q,"version":1},{"name":"workloads.plugins","version":1}]`, expected)
+					_, _ = fmt.Fprintf(w, `[{"name":%q,"version":1},{"name":"workloads.plugins","version":1}]`, expected)
 					return
 				}
 				base(w, r)

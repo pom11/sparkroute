@@ -125,7 +125,7 @@ func privateRead(path string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 	opened, err := file.Stat()
 	if err != nil || !os.SameFile(info, opened) {
 		return nil, fmt.Errorf("daemon connection changed while opening")
@@ -288,7 +288,7 @@ func (d *daemonTransport) json(ctx context.Context, method, path string, body an
 	if err != nil {
 		return 0, err
 	}
-	defer response.Body.Close()
+	defer func() { _ = response.Body.Close() }()
 	raw, err := io.ReadAll(io.LimitReader(response.Body, MaxBridgeResponseBytes+1))
 	if err != nil {
 		return response.StatusCode, err
@@ -523,7 +523,7 @@ func (c *Client) waitDaemon(ctx context.Context, id string, binding *Binding) (j
 			case http.StatusGone:
 				cursor = 0
 			case http.StatusUnauthorized, http.StatusForbidden:
-				response.Body.Close()
+				_ = response.Body.Close()
 				cancel()
 				return nil, &BridgeError{Code: "permission_denied", Message: "Daemon job access was revoked"}
 			case http.StatusOK:
@@ -560,7 +560,7 @@ func (c *Client) waitDaemon(ctx context.Context, id string, binding *Binding) (j
 					}
 				}
 			}
-			response.Body.Close()
+			_ = response.Body.Close()
 		}
 		cancel()
 		select {
@@ -655,11 +655,12 @@ func (c *Client) invokeDaemon(ctx context.Context, request bridgeRequest, result
 	}
 	args := map[string]any{}
 	if request.Binding != nil {
-		if request.Operation == "discover" || request.Operation == "status" {
+		switch request.Operation {
+		case "discover", "status":
 			args["binding"] = request.Binding
-		} else if request.Operation == "resolve" {
+		case "resolve":
 			args["reference"], args["expected_revision"], args["overrides"] = request.Binding.Recipe, request.Binding.RecipeRevision, request.Binding.Overrides
-		} else {
+		default:
 			args = daemonBindingArguments(*request.Binding, 0)
 		}
 	}
@@ -821,7 +822,7 @@ func updateDaemonAction(path string, action daemonAction) error {
 	if err != nil {
 		return err
 	}
-	defer os.Remove(file.Name())
+	defer func() { _ = os.Remove(file.Name()) }()
 	if _, err = file.Write(raw); err == nil {
 		err = file.Sync()
 	}

@@ -697,7 +697,7 @@ func (c *Controller) endpointFromBridge(
 	if discovered.ObservedAt != 0 {
 		observed = time.UnixMilli(int64(discovered.ObservedAt * 1000)).UTC()
 		if observed.After(now.Add(5*time.Second)) || !observed.Add(c.endpointTTL).After(now) {
-			return endpointregistry.Endpoint{}, nil, fmt.Errorf("Sparkrun observation is expired or in the future")
+			return endpointregistry.Endpoint{}, nil, fmt.Errorf("sparkrun observation is expired or in the future")
 		}
 	}
 	endpoint := endpointregistry.Endpoint{

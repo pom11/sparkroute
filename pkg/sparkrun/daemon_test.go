@@ -59,11 +59,11 @@ func daemonHandler(operation http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		if r.URL.Path == "/v1/info" {
-			fmt.Fprint(w, `{"protocol":1,"binding":"controller","profile":"sparkrun","manager":"sparkroute","runtime":{"version":"0.4.0"}}`)
+			_, _ = fmt.Fprint(w, `{"protocol":1,"binding":"controller","profile":"sparkrun","manager":"sparkroute","runtime":{"version":"0.4.0"}}`)
 			return
 		}
 		if r.URL.Path == "/v1/ops" {
-			fmt.Fprint(w, `[{"name":"plugins.sparkroute.endpoints.discover","version":1},{"name":"workloads.ensure_ready","version":1},{"name":"workloads.stop","version":1},{"name":"workloads.inventory","version":1},{"name":"catalog.recipe","version":1},{"name":"catalog.registries","version":1},{"name":"catalog.refresh","version":1}]`)
+			_, _ = fmt.Fprint(w, `[{"name":"plugins.sparkroute.endpoints.discover","version":1},{"name":"workloads.ensure_ready","version":1},{"name":"workloads.stop","version":1},{"name":"workloads.inventory","version":1},{"name":"catalog.recipe","version":1},{"name":"catalog.registries","version":1},{"name":"catalog.refresh","version":1}]`)
 			return
 		}
 		operation(w, r)
@@ -84,14 +84,14 @@ func TestDaemonQueriesValidateBindingAndOperation(t *testing.T) {
 	for _, wrong := range []string{"binding", "version"} {
 		t.Run(wrong, func(t *testing.T) {
 			var posts atomic.Int32
-			base := daemonHandler(func(w http.ResponseWriter, r *http.Request) { posts.Add(1); fmt.Fprint(w, `{"endpoints":[]}`) })
+			base := daemonHandler(func(w http.ResponseWriter, r *http.Request) { posts.Add(1); _, _ = fmt.Fprint(w, `{"endpoints":[]}`) })
 			client, _ := testDaemonClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				if wrong == "binding" && r.URL.Path == "/v1/info" {
-					fmt.Fprint(w, `{"protocol":1,"binding":"other","profile":"sparkrun"}`)
+					_, _ = fmt.Fprint(w, `{"protocol":1,"binding":"other","profile":"sparkrun"}`)
 					return
 				}
 				if wrong == "version" && r.URL.Path == "/v1/ops" {
-					fmt.Fprint(w, `[{"name":"plugins.sparkroute.endpoints.discover","version":2}]`)
+					_, _ = fmt.Fprint(w, `[{"name":"plugins.sparkroute.endpoints.discover","version":2}]`)
 					return
 				}
 				base(w, r)
@@ -107,10 +107,12 @@ func TestDaemonQueriesValidateBindingAndOperation(t *testing.T) {
 }
 func TestDaemonTokenRotationAndCatalogClientWithoutCapabilities(t *testing.T) {
 	tokenFile := filepath.Join(t.TempDir(), "token")
-	os.WriteFile(tokenFile, []byte("first"), 0600)
+	if err := os.WriteFile(tokenFile, []byte("first"), 0600); err != nil {
+		t.Fatal(err)
+	}
 	var token atomic.Value
 	token.Store("first")
-	base := daemonHandler(func(w http.ResponseWriter, r *http.Request) { fmt.Fprint(w, `[]`) })
+	base := daemonHandler(func(w http.ResponseWriter, r *http.Request) { _, _ = fmt.Fprint(w, `[]`) })
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Authorization") != "Bearer "+token.Load().(string) {
 			w.WriteHeader(403)
@@ -125,7 +127,9 @@ func TestDaemonTokenRotationAndCatalogClientWithoutCapabilities(t *testing.T) {
 	}
 	for _, value := range []string{"first", "rotated"} {
 		token.Store(value)
-		os.WriteFile(tokenFile, []byte(value), 0600)
+		if err := os.WriteFile(tokenFile, []byte(value), 0600); err != nil {
+			t.Fatal(err)
+		}
 		var result struct {
 			Registries []any `json:"registries"`
 		}
@@ -144,11 +148,11 @@ func TestDaemonSSEProgressReplayGapAndNewIntent(t *testing.T) {
 		defer mu.Unlock()
 		switch {
 		case strings.HasSuffix(r.URL.Path, "endpoints.metadata"):
-			fmt.Fprint(w, `{"model_metadata":{}}`)
+			_, _ = fmt.Fprint(w, `{"model_metadata":{}}`)
 		case r.Method == "POST":
 			keys = append(keys, r.Header.Get("Idempotency-Key"))
 			w.WriteHeader(202)
-			fmt.Fprintf(w, `{"job_id":%q}`, testDaemonJob)
+			_, _ = fmt.Fprintf(w, `{"job_id":%q}`, testDaemonJob)
 		case strings.HasSuffix(r.URL.Path, "/events"):
 			streams++
 			if streams == 1 {
@@ -159,7 +163,7 @@ func TestDaemonSSEProgressReplayGapAndNewIntent(t *testing.T) {
 				t.Error("gap did not reset cursor")
 			}
 			w.Header().Set("Content-Type", "text/event-stream")
-			fmt.Fprint(w, "id: 7\ndata: {\"id\":7,\"type\":\"progress\",\"stage\":\"launch\",\"workload_id\":\"work\"}\n\n")
+			_, _ = fmt.Fprint(w, "id: 7\ndata: {\"id\":7,\"type\":\"progress\",\"stage\":\"launch\",\"workload_id\":\"work\"}\n\n")
 		default:
 			polls++
 			state := "running"
@@ -168,7 +172,7 @@ func TestDaemonSSEProgressReplayGapAndNewIntent(t *testing.T) {
 				state = "succeeded"
 				result = testDaemonReady
 			}
-			fmt.Fprintf(w, `{"id":%q,"state":%q,"result":%s}`, testDaemonJob, state, result)
+			_, _ = fmt.Fprintf(w, `{"id":%q,"state":%q,"result":%s}`, testDaemonJob, state, result)
 		}
 	})
 	client, _ := testDaemonClient(t, handler)
@@ -194,16 +198,23 @@ func TestDaemonDisconnectKeepsIntentAcrossClientRestart(t *testing.T) {
 	var mu sync.Mutex
 	keys := []string{}
 	ready := false
+	// Interrupt the first wait once its submission has reached the daemon, not
+	// after a wall-clock deadline that a slow runner can hit before submitting.
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	handler := daemonHandler(func(w http.ResponseWriter, r *http.Request) {
 		mu.Lock()
 		defer mu.Unlock()
 		switch {
 		case strings.HasSuffix(r.URL.Path, "endpoints.metadata"):
-			fmt.Fprint(w, `{"model_metadata":{}}`)
+			_, _ = fmt.Fprint(w, `{"model_metadata":{}}`)
 		case r.Method == "POST":
 			keys = append(keys, r.Header.Get("Idempotency-Key"))
+			if len(keys) == 1 {
+				cancel()
+			}
 			w.WriteHeader(202)
-			fmt.Fprintf(w, `{"job_id":%q}`, testDaemonJob)
+			_, _ = fmt.Fprintf(w, `{"job_id":%q}`, testDaemonJob)
 		case strings.HasSuffix(r.URL.Path, "/events"):
 			w.Header().Set("Content-Type", "text/event-stream")
 		default:
@@ -213,12 +224,10 @@ func TestDaemonDisconnectKeepsIntentAcrossClientRestart(t *testing.T) {
 				state = "succeeded"
 				result = testDaemonReady
 			}
-			fmt.Fprintf(w, `{"id":%q,"state":%q,"result":%s}`, testDaemonJob, state, result)
+			_, _ = fmt.Fprintf(w, `{"id":%q,"state":%q,"result":%s}`, testDaemonJob, state, result)
 		}
 	})
 	client, path := testDaemonClient(t, handler)
-	ctx, cancel := context.WithTimeout(context.Background(), 70*time.Millisecond)
-	defer cancel()
 	if _, err := client.EnsureReady(ctx, Binding{Recipe: "recipe"}, time.Second); err == nil {
 		t.Fatal("expected interrupted wait")
 	}
@@ -232,6 +241,8 @@ func TestDaemonDisconnectKeepsIntentAcrossClientRestart(t *testing.T) {
 	if _, err = client.EnsureReady(context.Background(), Binding{Recipe: "recipe"}, time.Second); err != nil {
 		t.Fatal(err)
 	}
+	mu.Lock()
+	defer mu.Unlock()
 	if len(keys) != 2 || keys[0] == "" || keys[0] != keys[1] {
 		t.Fatalf("uncertain intent changed: %v", keys)
 	}
@@ -265,14 +276,18 @@ func TestDaemonPrivateConnectionAndChangedBinding(t *testing.T) {
 	client, path := testDaemonClient(t, daemonHandler(func(w http.ResponseWriter, r *http.Request) {}))
 	raw, _ := os.ReadFile(path)
 	var cfg DaemonConnection
-	json.Unmarshal(raw, &cfg)
+	if err := json.Unmarshal(raw, &cfg); err != nil {
+		t.Fatal(err)
+	}
 	cfg.Binding = "different"
 	writeDaemonConfig(t, path, cfg)
 	if _, _, _, err := client.daemon.connection(); err == nil {
 		t.Fatal("accepted changed controller")
 	}
 	if runtime.GOOS != "windows" {
-		os.Chmod(path, 0644)
+		if err := os.Chmod(path, 0644); err != nil {
+			t.Fatal(err)
+		}
 		if _, err := NewDaemonClient(path); err == nil {
 			t.Fatal("accepted public credential file")
 		}
@@ -287,15 +302,15 @@ func TestDaemonUnixSocket(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(dir)
+	defer func() { _ = os.RemoveAll(dir) }()
 	path := filepath.Join(dir, "api.sock")
 	listener, err := net.Listen("unix", path)
 	if err != nil {
 		t.Fatal(err)
 	}
-	server := &http.Server{Handler: daemonHandler(func(w http.ResponseWriter, r *http.Request) { fmt.Fprint(w, `{"endpoints":[]}`) })}
-	go server.Serve(listener)
-	defer server.Close()
+	server := &http.Server{Handler: daemonHandler(func(w http.ResponseWriter, r *http.Request) { _, _ = fmt.Fprint(w, `{"endpoints":[]}`) })}
+	go func() { _ = server.Serve(listener) }()
+	defer func() { _ = server.Close() }()
 	client, err := NewDaemonClient(daemonConfig(t, DaemonConnection{Socket: path}))
 	if err != nil {
 		t.Fatal(err)
@@ -308,11 +323,13 @@ func TestDaemonUnixSocket(t *testing.T) {
 func TestDaemonTLSAndPermissionFailures(t *testing.T) {
 	server := httptest.NewTLSServer(daemonHandler(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusForbidden)
-		fmt.Fprint(w, `{"detail":"insufficient permission"}`)
+		_, _ = fmt.Fprint(w, `{"detail":"insufficient permission"}`)
 	}))
 	defer server.Close()
 	ca := filepath.Join(t.TempDir(), "ca.pem")
-	os.WriteFile(ca, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: server.Certificate().Raw}), 0600)
+	if err := os.WriteFile(ca, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: server.Certificate().Raw}), 0600); err != nil {
+		t.Fatal(err)
+	}
 	client, err := NewDaemonClient(daemonConfig(t, DaemonConnection{URL: server.URL, Token: "test", CAFile: ca}))
 	if err != nil {
 		t.Fatal(err)
@@ -346,7 +363,7 @@ func TestDaemonCatalogRecipeProjection(t *testing.T) {
 func TestDaemonLocalTCPDescriptorFollowsRestartAndRejectsMismatchedCredentials(t *testing.T) {
 	var token atomic.Value
 	token.Store("first")
-	base := daemonHandler(func(w http.ResponseWriter, r *http.Request) { fmt.Fprint(w, `[]`) })
+	base := daemonHandler(func(w http.ResponseWriter, r *http.Request) { _, _ = fmt.Fprint(w, `[]`) })
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Authorization") != "Bearer "+token.Load().(string) {
 			w.WriteHeader(http.StatusUnauthorized)
@@ -421,11 +438,11 @@ func TestDaemonNamedRegistryActions(t *testing.T) {
 					}
 				}
 				submitted.Add(1)
-				fmt.Fprint(w, `{"registries":[]}`)
+				_, _ = fmt.Fprint(w, `{"registries":[]}`)
 			})
 			client, _ := testDaemonClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				if r.URL.Path == "/v1/ops" {
-					fmt.Fprintf(w, `[{"name":%q,"version":1}]`, "catalog.registries."+action)
+					_, _ = fmt.Fprintf(w, `[{"name":%q,"version":1}]`, "catalog.registries."+action)
 					return
 				}
 				base(w, r)
