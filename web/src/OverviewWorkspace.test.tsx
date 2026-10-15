@@ -185,3 +185,42 @@ it("shows exhausted recovery and offers an explicit retry", async () => {
   expect(screen.getByLabelText("Automatic recovery")).toHaveTextContent("3 / 3");
   expect(screen.getByLabelText("Automatic recovery")).toHaveTextContent("Start to retry explicitly");
 });
+
+it("shows a healthy discovered workload with a blocked public name and links to correction", async () => {
+  const discovered = {...target, deployment: "discovered", title: "DeepSeek on sparks25", endpoint_source: "discovered" as const, model_names: [], routing_state: "unrouted" as const, routing_conflicts: [{name: "deepseek/flash", model: "saved-route"}], active_requests: 0};
+  const data = {...status, targets: [discovered]};
+  mockAPI({status: data, bindings: [], endpoints: [{...endpoint, target: "discovered", cluster_id: "sparkrun-workload", cluster_name: "sparks25"}]});
+  render(<OverviewWorkspace bootstrap={bootstrap} token="" initialStatus={data} />);
+  const row = deploymentRow("DeepSeek on sparks25");
+  await waitFor(() => expect(row.getByText("Running")).toBeInTheDocument());
+  expect(row.getByText("Not routed")).toBeInTheDocument();
+  expect(row.getByText("sparks25")).toBeInTheDocument();
+  expect(row.queryByText("sparkrun-workload")).not.toBeInTheDocument();
+  expect(row.getByText(/Name conflict/)).toHaveTextContent("saved-route");
+  expect(row.getByRole("link", {name: "Edit existing route"})).toHaveAttribute("href", "/admin/configuration/models?model=saved-route");
+  expect(row.getByRole("link", {name: "Create or edit a route"})).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", {name: "Needs attention 1"}));
+  expect(screen.getByRole("button", {name: "DeepSeek on sparks25"})).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("tab", {name: "Diagnostics"}));
+  expect(screen.getByText("sparks25")).toBeInTheDocument();
+  expect(screen.queryByText("sparkrun-workload")).not.toBeInTheDocument();
+});
+
+
+it.each(["expired", "removed"])("stops showing an unrouted discovery as running when its endpoint is %s", async (change) => {
+  const discovered = {...target, deployment: "discovered", title: "DeepSeek on sparks25", endpoint_source: "discovered" as const, model_names: [], routing_state: "unrouted" as const, routing_conflicts: [{name: "deepseek/flash", model: "saved-route"}], active_requests: 0};
+  const data = {...status, targets: [discovered]};
+  const endpoints = [{...endpoint, target: "discovered", cluster_id: "sparkrun-workload", cluster_name: "sparks25", active_requests: 0}];
+  const standalone = {...bootstrap, features: {...bootstrap.features, runtime_events: false}};
+  mockAPI({status: data, bindings: [], endpoints});
+  const {rerender} = render(<OverviewWorkspace bootstrap={standalone} token="" initialStatus={data} />);
+  await waitFor(() => expect(deploymentRow("DeepSeek on sparks25").getByText("Running")).toBeInTheDocument());
+  expect(screen.getByRole("button", {name: "Running workloads 1"})).toBeInTheDocument();
+  if (change === "expired") endpoints[0]!.expired = true;
+  else endpoints.splice(0);
+  rerender(<OverviewWorkspace bootstrap={standalone} token="" initialStatus={data} refreshKey={1} />);
+  await waitFor(() => expect(deploymentRow("DeepSeek on sparks25").getByText("Unknown")).toBeInTheDocument());
+  expect(screen.getByRole("button", {name: "Running workloads 0"})).toBeInTheDocument();
+  expect(deploymentRow("DeepSeek on sparks25").getByText("Not routed")).toBeInTheDocument();
+  expect(deploymentRow("DeepSeek on sparks25").getByRole("link", {name: "Edit existing route"})).toBeInTheDocument();
+});

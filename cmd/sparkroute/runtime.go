@@ -275,6 +275,7 @@ func buildRuntimeGeneration(
 		}
 		if endpointRegistry != nil {
 			adminOptions.Endpoints = endpointRegistry
+			adminOptions.EndpointInventory = endpointRegistry
 		}
 		if options.SparkrunEnabled {
 			catalog, err := newSparkrunClient(options)

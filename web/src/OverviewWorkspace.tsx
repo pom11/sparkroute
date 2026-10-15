@@ -148,8 +148,12 @@ export function OverviewWorkspace({ bootstrap, token, initialStatus, refreshKey 
                 {row.binding?.reason && ["failed", "starting", "unknown"].includes(row.state) ? <small>{row.binding.reason.replaceAll("_", " ")}</small> : null}
                 {lifecycle.error && row.activatable ? <small className="overview-row-warning">Lifecycle status stale</small> : null}
               </td>
-              <td data-label="Routing / circuit"><Pill tone={routingLabel(row) === "Admitting" ? "good" : ["Blocked", "Unavailable", "Recovery probe"].includes(routingLabel(row)) ? "warning" : "neutral"}>{routingLabel(row)}</Pill>
+              <td data-label="Routing / circuit"><Pill tone={routingLabel(row) === "Admitting" ? "good" : ["Blocked", "Unavailable", "Recovery probe", "Not routed"].includes(routingLabel(row)) ? "warning" : "neutral"}>{routingLabel(row)}</Pill>
                 <small>{row.target ? `Circuit ${humanize(row.target.circuit_state)}` : "Circuit not reported"}</small>
+                {row.target?.routing_conflicts?.map(conflict => <small className="overview-row-warning" key={conflict.name}>
+                  Name conflict: {conflict.name} belongs to route {conflict.model}. <a href={`/admin/configuration/models?model=${encodeURIComponent(conflict.model)}`}>Edit existing route</a>
+                </small>)}
+                {row.target?.routing_state === "unrouted" ? <small><a href="/admin/configuration/models">Create or edit a route</a></small> : null}
                 {row.target?.recent_failures?.length ? <small className="overview-row-warning">{row.target.recent_failures.length} recent failures</small> : null}
                 {status.error && row.target ? <small className="overview-row-warning">Routing health stale</small> : null}
               </td>

@@ -106,7 +106,7 @@ func (h *handler) managedSet(writer http.ResponseWriter, request *http.Request) 
 	path := strings.TrimPrefix(request.URL.Path, "/v1/config/managed-sets/")
 	parts := strings.Split(strings.Trim(path, "/"), "/")
 	if len(parts) == 0 || len(parts) > 2 || parts[0] == "" ||
-		(len(parts) == 2 && parts[1] != "validate" && parts[1] != "simulate-routing") {
+		(len(parts) == 2 && parts[1] != "validate" && parts[1] != "simulate-routing" && parts[1] != "reconcile-context") {
 		writeError(writer, http.StatusNotFound, "not_found", "route not found")
 		return
 	}
@@ -119,6 +119,10 @@ func (h *handler) managedSet(writer http.ResponseWriter, request *http.Request) 
 		return
 	}
 	if len(parts) == 2 {
+		if parts[1] == "reconcile-context" {
+			h.reconcileContext(writer, request, owner)
+			return
+		}
 		if parts[1] == "validate" {
 			h.validateManagedSet(writer, request, owner)
 		} else {

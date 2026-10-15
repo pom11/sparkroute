@@ -41,9 +41,17 @@ export function VirtualModelEditor({
   const deployments = [...new Set([...(shape.deployments ?? []), ...(generatedShape.deployments ?? []), ...referencedDeployments.map((deployment) => deployment.name)])];
   const titles = deploymentChoices(document, readOnlyDocument);
   const [requestedIndex, setSelectedIndex] = useState(0);
+  const [requestedModel, setRequestedModel] = useState(() => new URLSearchParams(window.location.search).get("model"));
   const [confirmRemove, setConfirmRemove] = useState(false);
   const editableModels = shape.models ?? [];
   const models = [...editableModels, ...(generatedShape.models ?? [])];
+  useEffect(() => {
+    if (!requestedModel) return;
+    const requested = models.find(model => model.name === requestedModel);
+    const parent = requested && objectValue(requested.profile).parent;
+    const index = models.findIndex(model => model.name === (parent || requestedModel));
+    if (index >= 0) { setSelectedIndex(index); setRequestedModel(null); }
+  }, [models, requestedModel]);
   // Hide variants only when their parent exists, so standalone/orphaned models
   // remain accessible. Keep original indices for edits and generated ownership.
   const visibleModels = models.map((model, index) => ({ model, index })).filter(({ model }) => {

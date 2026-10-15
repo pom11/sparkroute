@@ -56,7 +56,7 @@ export function deploymentInventory(status?: GatewayStatus, lifecycle?: Lifecycl
     row.title = target?.title || row.id;
     row.activatable = Boolean(binding || target?.endpoint_source === "activatable");
     row.models = [...new Set([...(target?.model_names ?? []), target?.model, binding?.virtual_model, ...row.endpoints.flatMap(e => e.served_models)].filter((s): s is string => Boolean(s)))];
-    row.clusters = [...new Set(binding?.cluster_candidates?.length ? binding.cluster_candidates : row.endpoints.map(e => e.cluster_id).filter((s): s is string => Boolean(s)))];
+    row.clusters = [...new Set(binding?.cluster_candidates?.length ? binding.cluster_candidates : row.endpoints.map(e => e.cluster_name || e.cluster_id).filter((s): s is string => Boolean(s)))];
     const live = row.endpoints.filter(e => !e.expired);
     row.state = binding ? bindingState(binding) : row.activatable ? "unknown"
       : live.some(e => e.state === "ready" && Boolean(e.controller)) ? "running"
@@ -67,7 +67,7 @@ export function deploymentInventory(status?: GatewayStatus, lifecycle?: Lifecycl
     row.queued = binding?.queued_waiters ?? 0;
     const controller = lifecycle?.controllers.find(c => c.controller === (binding?.controller || target?.controller || live[0]?.controller));
     if (controller && controller.health !== "healthy") row.controllerIssue = `${controller.controller}: ${controller.health}${controller.reason ? ` · ${controller.reason.replaceAll("_", " ")}` : ""}`;
-    row.needsAttention = Boolean(row.controllerIssue || ["failed", "unknown"].includes(row.state)
+    row.needsAttention = Boolean(target?.routing_state === "unrouted" || row.controllerIssue || ["failed", "unknown"].includes(row.state)
       || target && (["open", "half_open"].includes(target.circuit_state) || target.consecutive_failures > 0 || (target.recent_failures?.length ?? 0) > 0));
   }
   return [...entries.values()].sort((a, b) => a.title.localeCompare(b.title) || a.id.localeCompare(b.id));
@@ -75,6 +75,7 @@ export function deploymentInventory(status?: GatewayStatus, lifecycle?: Lifecycl
 
 export function routingLabel(row: DeploymentEntry): string {
   const target = row.target;
+  if (target?.routing_state === "unrouted") return "Not routed";
   if (target?.circuit_state === "open") return "Blocked";
   if (target?.circuit_state === "half_open") return "Recovery probe";
   if (target && target.max_concurrency > 0 && row.requests >= target.max_concurrency) return "At capacity";
@@ -83,5 +84,6 @@ export function routingLabel(row: DeploymentEntry): string {
   if (row.state === "starting") return "Waiting for readiness";
   if (["stopping", "draining", "failed"].includes(row.state)) return "Unavailable";
   if (row.state === "unknown" && row.activatable) return "Unknown";
+  if (row.state === "unknown" && target?.endpoint_source === "discovered") return "Unavailable";
   return target ? target.admission_available ? "Admitting" : "Unavailable" : "Not reported";
 }

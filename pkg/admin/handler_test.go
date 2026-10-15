@@ -444,6 +444,16 @@ func TestManagedConfigurationAPIEnforcesOwnerRoles(t *testing.T) {
 		}
 	}
 
+	for _, token := range []string{operator.APIKey, sparkrun.APIKey} {
+		response := request(http.MethodGet, "/v1/config/managed-sets/sparkrun/reconcile-context", token, nil)
+		var context managed.ReconcileContext
+		if response.Code != http.StatusOK || json.Unmarshal(response.Body.Bytes(), &context) != nil || context.ActiveRevision != active || response.Header().Get("Cache-Control") != "no-store" {
+			t.Fatalf("reconciliation context: %d %s", response.Code, response.Body)
+		}
+	}
+	if response := request(http.MethodGet, "/v1/config/managed-sets/sparkrun/reconcile-context", writerOnly.APIKey, nil); response.Code != http.StatusForbidden {
+		t.Fatalf("writer-only context: %d %s", response.Code, response.Body)
+	}
 	writerSets := request(http.MethodGet, "/v1/config/managed-sets", writerOnly.APIKey, nil)
 	for _, token := range []string{operator.APIKey, writerOnly.APIKey} {
 		if response := request(http.MethodGet, "/v1/config/presets", token, nil); response.Code != http.StatusOK {

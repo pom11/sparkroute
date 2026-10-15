@@ -21,6 +21,8 @@ export interface AdminBootstrap {
 }
 
 export interface TargetStatus {
+  routing_state?: "routed" | "unrouted";
+  routing_conflicts?: Array<{ name: string; model: string }>;
   deployment: string;
   title?: string;
   provider?: string;
@@ -346,6 +348,7 @@ export interface RuntimeEndpoint {
   served_models: string[];
   controller?: string;
   cluster_id?: string;
+  cluster_name?: string;
   job_id?: string;
   binding_revision?: string;
   recipe_revision?: string;

@@ -63,7 +63,7 @@ export function EndpointInventory({
         <td>{endpoint.target}<small>{endpoint.protocol || "—"}</small></td>
         <td><StatePill value={endpoint.expired ? "expired" : endpoint.state} good={endpoint.state === "ready" && !endpoint.expired} /></td>
         <td>{endpoint.active_requests} / {endpoint.max_concurrency || "∞"}</td>
-        <td>{endpoint.controller || "static"}<small>{endpoint.cluster_id || endpoint.job_id || "—"}</small></td>
+        <td>{endpoint.controller || "static"}<small>{endpoint.cluster_name || endpoint.cluster_id || endpoint.job_id || "—"}</small></td>
         <td>{endpoint.heartbeat_at ? formatTime(endpoint.heartbeat_at) : "—"}</td>
       </tr>)}
     </tbody></table></div> : <Empty title="No endpoints match" detail="No current registration matches these filters." />}

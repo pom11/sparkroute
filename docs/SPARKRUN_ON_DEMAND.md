@@ -232,3 +232,57 @@ prepare an independent request for each target. Existing flat `request_overrides
 variants remain compatible. **Review migration** previews linking a legacy variant
 to its parent and preserves existing values as operator patches. Explicit generated
 profiles remain read-only. The plugin and gateway must both support bridge v5.
+
+
+## Discovery and public-name conflicts
+
+Discovery and public routing are separate. A running workload may be imported as
+a deployment without receiving a default virtual model when that public name is
+already reserved. Duplicate names remain invalid in managed configuration.
+
+The Overview inventory shows **Running** and **Not routed** independently, with
+the conflicting route and an **Edit existing route** link. The deployment is
+available in the Virtual Models / Aliases target picker. A user can add or replace
+an existing target, or create a differently named route. No automatic correction
+changes an operator route. Once referenced, a discovered deployment is retained
+even if its workload stops; removing the reference permits discovery cleanup.
+
+`GET /v1/config/managed-sets/sparkrun/reconcile-context` requires configuration
+read or Sparkrun reconciliation permission. It returns:
+
+* `active_revision`: the compare-and-swap revision for the complete snapshot;
+* `document`: the current Sparkrun-owned fragment;
+* `reserved_names`: other owners' public name claims (`name`, `owner`, `model`,
+  `kind`), including derived profile aliases;
+* `referenced_deployments` and `referenced_models`: incoming references into the
+  Sparkrun fragment that a discovery sweep must preserve.
+
+The snapshot is read transactionally and contains no other owner's provider,
+credential, recipe, or policy configuration. It does not relax the validation or
+permissions on ordinary managed-set replacements. A stale revision is rejected
+with `revision_conflict`; the plugin must rebuild using a fresh snapshot.
+
+`/v1/status` targets include `routing_state` (`routed` or `unrouted`) and, when a
+discovered deployment's upstream model name is already in use, `routing_conflicts`
+with the public `name` and existing canonical `model`. Unreferenced deployments
+are included in status even when a routing implementation omits them.
+
+The standalone admin API exposes `GET /v1/runtime/endpoints` when its live
+endpoint registry is available. Like lifecycle status, it requires `status_read`
+or explicitly enabled insecure admin access. Bootstrap advertises
+`endpoint_inventory` only to callers who can read it. The console joins this
+inventory with deployments, so an unexpired ready endpoint can show **Running**
+even while its deployment remains **Not routed**. Expired or removed endpoints
+do not count as running; inspecting them never starts a workload.
+
+The endpoint API supports `target`, `controller`, `state`, `limit` (up to 500),
+and opaque `cursor` filters. Responses contain `endpoints` and an optional
+`next_cursor`, with placement, state, heartbeat/expiry times, and request counts.
+The optional `cluster_name` supplies the display name (for example, `sparks25`),
+while `cluster_id` retains its registry identity. Endpoint URLs, credentials,
+fencing tokens, and other controller metadata are omitted.
+
+Sparkrun's proxy configuration keeps SparkRoute-specific settings and generated
+catalogs under `gateways.sparkroute` in `proxy.yaml`. Only that namespace is
+supported; legacy locations are not read or migrated. This is separate from
+SparkRoute's managed configuration database and does not rewrite operator routes.

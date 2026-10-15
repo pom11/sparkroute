@@ -52,3 +52,36 @@ func TestStatusDeploymentInventoryMetadata(t *testing.T) {
 		t.Fatal("status exposed recipe or override data")
 	}
 }
+
+func TestUnroutedDiscoveryRemainsVisibleAndCorrectionClearsConflict(t *testing.T) {
+	document := config.Document{
+		Deployments: []config.Deployment{
+			{Name: "new", Model: "deepseek", EndpointSource: config.EndpointSource{Type: config.EndpointSourceDiscovered, Controller: "sparkrun"}},
+			{Name: "old", Model: "deepseek"},
+		},
+		VirtualModels: []config.VirtualModel{{Name: "saved", Aliases: []string{"deepseek"}, Pools: []config.RoutingPool{{Targets: []config.WeightedTarget{{Deployment: "old"}}}}}},
+	}
+	observe := func() TargetStatus {
+		t.Helper()
+		handler := NewHandler(document, "revision", Options{})
+		response := httptest.NewRecorder()
+		handler.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/v1/status", nil))
+		var status Status
+		if response.Code != http.StatusOK || json.Unmarshal(response.Body.Bytes(), &status) != nil {
+			t.Fatalf("status: %s", response.Body)
+		}
+		if len(status.Targets) != 2 {
+			t.Fatalf("inventory omitted unrouted deployment: %#v", status)
+		}
+		return status.Targets[0]
+	}
+	target := observe()
+	if target.RoutingState != "unrouted" || len(target.RoutingConflicts) != 1 || target.RoutingConflicts[0].Model != "saved" {
+		t.Fatalf("conflict: %#v", target)
+	}
+	document.VirtualModels[0].Pools[0].Targets[0].Deployment = "new"
+	target = observe()
+	if target.RoutingState != "routed" || len(target.RoutingConflicts) != 0 {
+		t.Fatalf("correction: %#v", target)
+	}
+}

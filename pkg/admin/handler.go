@@ -55,6 +55,7 @@ type Options struct {
 	Lifecycle         lifecycle.StatusSource
 	SparkrunCatalog   sparkrun.Catalog
 	Endpoints         ReadyEndpoints
+	EndpointInventory endpointregistry.Inspector
 	Targets           routing.TargetStatusSource
 	Credentials       credentials.StatusSource
 	GatewayVersion    string
@@ -85,7 +86,14 @@ type Status struct {
 	Privacy          privacy.Status      `json:"privacy"`
 }
 
+type RoutingConflict struct {
+	Name  string `json:"name"`
+	Model string `json:"model"`
+}
+
 type TargetStatus struct {
+	RoutingState        string                    `json:"routing_state,omitempty"`
+	RoutingConflicts    []RoutingConflict         `json:"routing_conflicts,omitempty"`
 	Deployment          string                    `json:"deployment"`
 	Title               string                    `json:"title,omitempty"`
 	Provider            string                    `json:"provider,omitempty"`
@@ -207,6 +215,9 @@ func NewHandler(
 	}
 	if options.SparkrunControl != nil && privileged {
 		mux.HandleFunc("/v1/sparkrun/workload", h.sparkrunWorkload)
+	}
+	if options.EndpointInventory != nil && privileged {
+		mux.HandleFunc("/v1/runtime/endpoints", h.runtimeEndpoints)
 	}
 	if options.Lifecycle != nil && privileged {
 		mux.HandleFunc("/v1/runtime/status", h.lifecycleStatus)
@@ -436,7 +447,8 @@ func (h *handler) serveBootstrap(
 		bootstrap.Features["sparkrun"] = h.options.SparkrunCatalog != nil
 		bootstrap.Features["sparkrun_catalog"] = h.options.SparkrunCatalog != nil && hasRole(principal, RoleConfigRead)
 		bootstrap.Features[adminapi.FeatureLifecycleStatus] = h.options.Lifecycle != nil && hasRole(principal, RoleStatusRead)
-		bootstrap.Features[adminapi.FeatureLifecycle] = bootstrap.Features[adminapi.FeatureLifecycleStatus]
+		bootstrap.Features[adminapi.FeatureEndpointInventory] = h.options.EndpointInventory != nil && hasRole(principal, RoleStatusRead)
+		bootstrap.Features[adminapi.FeatureLifecycle] = bootstrap.Features[adminapi.FeatureLifecycleStatus] || bootstrap.Features[adminapi.FeatureEndpointInventory]
 		bootstrap.Features[adminapi.FeatureStatus] = hasRole(principal, RoleStatusRead)
 		bootstrap.Features[adminapi.FeatureProviderAuth] = h.options.ProviderAuth != nil && hasRole(principal, RoleConfigWrite)
 		bootstrap.Features[adminapi.FeatureConfigValidate] =
@@ -518,6 +530,17 @@ func (h *handler) serveStatus(
 			}
 		}
 	}
+	// Unrouted deployments remain inventory entries even when a routing
+	// implementation only reports targets referenced by public models.
+	reported := map[string]bool{}
+	for _, target := range status.Targets {
+		reported[target.Deployment] = true
+	}
+	for _, deployment := range h.document.Deployments {
+		if !reported[deployment.Name] {
+			status.Targets = append(status.Targets, TargetStatus{Deployment: deployment.Name})
+		}
+	}
 	for i := range status.Targets {
 		target := &status.Targets[i]
 		deployment, ok := deployments[target.Deployment]
@@ -536,6 +559,19 @@ func (h *handler) serveStatus(
 			target.ModelNames = append(target.ModelNames, name)
 		}
 		sort.Strings(target.ModelNames)
+		target.RoutingState = "routed"
+		if len(target.ModelNames) == 0 {
+			target.RoutingState = "unrouted"
+			if target.EndpointSource == config.EndpointSourceDiscovered {
+				for _, model := range h.document.VirtualModels {
+					for _, name := range append([]string{model.Name}, model.Aliases...) {
+						if name == deployment.Model {
+							target.RoutingConflicts = append(target.RoutingConflicts, RoutingConflict{Name: name, Model: model.Name})
+						}
+					}
+				}
+			}
+		}
 	}
 	status.Credentials = credentialStatus(h.options.Credentials)
 	status.MMProjection = projectionStatus(h.options.MMProjection)
