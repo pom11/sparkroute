@@ -209,7 +209,7 @@ weighted random draw. `least_outstanding` suits pools of interchangeable
 deployments whose request durations vary widely, where a random draw can stack
 long requests on one target while others sit idle. In-flight counts are
 replica-local, like circuit state, and are read once when the request's plan is
-built. The **Selection** field in the UI does not list it yet; set it in JSON.
+built. It is listed as **Least outstanding** in the **Selection** field.
 
 Under **Virtual Models / Aliases**, **Request profiles** follows the general model
 fields and precedes routing pools. The table shows each named selector (such as
